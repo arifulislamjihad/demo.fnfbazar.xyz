@@ -1,0 +1,7 @@
+django
+pillow
+django-allauth
+requests
+PyJWT
+sqlparse
+cryptography

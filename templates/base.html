@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}E-Shop{% endblock %}</title>
+    {% load static %}
+    
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+
+    <!-- Navbar -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <a href="{% url 'shop:home' %}" class="text-2xl font-bold text-purple-600">E-Shop</a>
+
+            <!-- Mobile Menu Button -->
+            <button id="menu-btn" class="lg:hidden text-gray-700 text-2xl">
+                <i class="fas fa-bars"></i>
+            </button>
+
+            <!-- Menu -->
+            <ul id="menu" class="hidden lg:flex space-x-8 text-gray-700 font-medium">
+                <li><a href="{% url 'shop:home' %}" class="hover:text-purple-600">Home</a></li>
+                <li><a href="{% url 'shop:product_list' %}" class="hover:text-purple-600">Products</a></li>
+            </ul>
+
+            <!-- Right Side -->
+            <div class="hidden lg:flex items-center space-x-6">
+
+                <!-- Search -->
+                <form action="{% url 'shop:product_list' %}" method="get" class="flex">
+                    <input name="search" type="text" placeholder="Search..."
+                        class="px-3 py-2 border border-gray-300 rounded-l-full focus:ring-2 focus:ring-purple-300 outline-none">
+                    <button class="bg-purple-600 text-white px-4 rounded-r-full">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
+
+                <!-- Cart -->
+                <a href="{% url 'shop:cart_detail' %}" class="relative text-gray-700 hover:text-purple-600">
+                    <i class="fas fa-shopping-cart text-2xl"></i>
+                    {% if cart_items_count %}
+                    <span class="absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                        {{ cart_items_count }}
+                    </span>
+                    {% endif %}
+                </a>
+
+                {% if user.is_authenticated %}
+                    <!-- User Dropdown -->
+                    <div class="relative group">
+                        <button class="flex items-center space-x-2 text-gray-700 hover:text-purple-600">
+                            <i class="fas fa-user-circle text-2xl"></i>
+                            <span>{{ user.username }}</span>
+                        </button>
+                        <div class="absolute hidden group-hover:block right-0 mt-2 bg-white shadow-lg w-40 rounded-lg overflow-hidden">
+                            <a href="{% url 'shop:profile' %}" class="block px-4 py-2 hover:bg-gray-100">My Profile</a>
+                            <a href="{% url 'shop:logout' %}" class="block px-4 py-2 hover:bg-gray-100">Logout</a>
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{% url 'shop:login' %}" class="px-4 py-2 border border-purple-600 text-purple-600 rounded-full hover:bg-purple-600 hover:text-white transition">
+                        Login
+                    </a>
+                    <a href="{% url 'shop:register' %}" class="px-4 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition">
+                        Register
+                    </a>
+                {% endif %}
+            </div>
+        </nav>
+
+        <!-- Mobile Dropdown -->
+        <ul id="mobile-menu" class="hidden lg:hidden bg-white shadow-md px-6 pb-4 space-y-3 text-gray-700 font-medium">
+            <li><a href="{% url 'shop:home' %}" class="block py-2">Home</a></li>
+            <li><a href="{% url 'shop:product_list' %}" class="block py-2">Products</a></li>
+        </ul>
+
+        <script>
+            document.getElementById("menu-btn").onclick = () => {
+                const menu = document.getElementById("mobile-menu");
+                menu.classList.toggle("hidden");
+            }
+        </script>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto my-6 px-4 flex-1">
+        {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                <div class="p-4 mb-2 rounded-lg text-white 
+                    {% if message.tags == 'success' %} bg-green-500
+                    {% elif message.tags == 'info' %} bg-blue-500
+                    {% elif message.tags == 'warning' %} bg-yellow-500
+                    {% else %} bg-red-500{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 mt-10 py-10">
+        <div class="container mx-auto px-4 grid md:grid-cols-3 gap-6">
+
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">About Us</h3>
+                <p class="text-gray-600">We provide high-quality products at affordable prices.</p>
+            </div>
+
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">Contact</h3>
+                <p class="text-gray-600">Email: contact@eshop.com</p>
+                <p class="text-gray-600">Phone: +880 1234-567890</p>
+            </div>
+
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">Follow Us</h3>
+                <div class="flex space-x-4">
+                    <i class="fab fa-facebook text-2xl text-purple-600"></i>
+                    <i class="fab fa-twitter text-2xl text-purple-600"></i>
+                    <i class="fab fa-instagram text-2xl text-purple-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center text-gray-600 mt-6">&copy; {% now "Y" %} E-Shop. All rights reserved.</p>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

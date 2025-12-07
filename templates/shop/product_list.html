@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if category %}{{ category.name }}{% else %}Products{% endif %} | E-Shop
+{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="bg-gray-100 rounded-xl p-6 mb-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">
+                {% if category %}{{ category.name }}{% else %}All Products{% endif %}
+            </h1>
+            <p class="text-gray-500 text-sm">
+                Showing {{ products|length }} product{{ products|length|pluralize }}
+                {% if request.GET.search %} for "{{ request.GET.search }}"{% endif %}
+            </p>
+        </div>
+
+        {% if request.GET.min_price or request.GET.max_price or request.GET.rating or request.GET.search %}
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-gray-600 text-sm">Active Filters:</span>
+
+            {% if request.GET.min_price or request.GET.max_price %}
+            <span class="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm">
+                Price: ৳{{ request.GET.min_price|default:min_price }} - ৳{{ request.GET.max_price|default:max_price }}
+            </span>
+            {% endif %}
+
+            {% if request.GET.rating %}
+            <span class="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm">
+                Rating: {{ request.GET.rating }}+ stars
+            </span>
+            {% endif %}
+
+            {% if request.GET.search %}
+            <span class="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm">
+                Search: "{{ request.GET.search }}"
+            </span>
+            {% endif %}
+
+            <a href="{% url 'shop:product_list' %}" 
+               class="text-sm px-4 py-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-md">
+                Clear All ✖
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+
+    <!-- Sidebar Filters -->
+    <aside class="lg:col-span-1">
+        <div class="bg-white shadow-md rounded-xl p-6 sticky top-4">
+
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-filter"></i> Filters
+            </h2>
+
+            <!-- Categories -->
+            <h3 class="text-gray-700 font-medium border-b pb-2 mb-3">Categories</h3>
+
+            <div class="space-y-2">
+                <a href="{% url 'shop:product_list' %}"
+                   class="block px-2 py-1 rounded hover:bg-gray-100 
+                   {% if not category %}text-purple-600 font-semibold{% endif %}">
+                   All Categories
+                </a>
+
+                {% for c in categories %}
+                <a href="{% url 'shop:product_list_by_category' c.slug %}"
+                   class="block px-2 py-1 rounded hover:bg-gray-100
+                   {% if category.slug == c.slug %}text-purple-600 font-semibold{% endif %}">
+                   {{ c.name }}
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Price Range -->
+            <h3 class="text-gray-700 font-medium border-b pb-2 mt-6 mb-3">Price Range</h3>
+
+            <form method="get" class="space-y-4">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-sm text-gray-500">Min</label>
+                        <input type="number" name="min_price" 
+                               value="{{ request.GET.min_price|default:'' }}"
+                               class="w-full border rounded px-3 py-2 text-sm">
+                    </div>
+
+                    <div>
+                        <label class="text-sm text-gray-500">Max</label>
+                        <input type="number" name="max_price" 
+                               value="{{ request.GET.max_price|default:'' }}"
+                               class="w-full border rounded px-3 py-2 text-sm">
+                    </div>
+                </div>
+
+                <!-- Rating -->
+                <h3 class="text-gray-700 font-medium border-b pb-2 mt-6 mb-3">Rating</h3>
+
+                <select name="rating"
+                        class="w-full border rounded px-3 py-2 text-sm">
+                    <option value="">Any Rating</option>
+                    <option value="5" {% if request.GET.rating == '5' %}selected{% endif %}>★★★★★ 5 Stars</option>
+                    <option value="4" {% if request.GET.rating == '4' %}selected{% endif %}>★★★★☆ 4+ Stars</option>
+                    <option value="3" {% if request.GET.rating == '3' %}selected{% endif %}>★★★☆☆ 3+ Stars</option>
+                    <option value="2" {% if request.GET.rating == '2' %}selected{% endif %}>★★☆☆☆ 2+ Stars</option>
+                    <option value="1" {% if request.GET.rating == '1' %}selected{% endif %}>★☆☆☆☆ 1+ Stars</option>
+                </select>
+
+                {% if request.GET.search %}
+                    <input type="hidden" name="search" value="{{ request.GET.search }}">
+                {% endif %}
+
+                <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg mt-3">
+                    Apply Filters
+                </button>
+
+                <a href="{% url 'shop:product_list' %}" 
+                   class="block w-full text-center bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg">
+                    Reset Filters
+                </a>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Product Grid -->
+    <section class="lg:col-span-3">
+
+        {% if products %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+
+            {% for product in products %}
+            <div class="bg-white rounded-xl shadow hover:shadow-xl transition p-3 flex flex-col">
+
+                <!-- Image -->
+                <div class="relative h-48 overflow-hidden rounded-lg">
+                    
+                    {% if product.image %}
+                    <img src="{{ product.image.url }}" 
+                         class="w-full h-full object-cover hover:scale-110 transition">
+                    {% else %}
+                    <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                        <i class="fas fa-image text-gray-400 text-4xl"></i>
+                    </div>
+                    {% endif %}
+
+                    {% if product.stock <= 5 and product.stock > 0 %}
+                    <span class="absolute top-2 left-2 bg-yellow-400 text-white text-xs px-2 py-1 rounded">Low Stock</span>
+                    {% elif product.stock <= 0 %}
+                    <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">Out of Stock</span>
+                    {% endif %}
+
+                </div>
+
+                <!-- Details -->
+                <div class="mt-4 flex flex-col flex-grow">
+                    <h3 class="font-semibold text-gray-800 line-clamp-2">{{ product.name }}</h3>
+                    <p class="text-gray-500 text-sm mt-1 line-clamp-3">
+                        {{ product.description|truncatechars:100 }}
+                    </p>
+
+                    <div class="mt-auto flex justify-between items-center pt-3">
+                        <span class="text-lg font-bold text-gray-900">৳{{ product.price }}</span>
+
+                        <div class="text-yellow-400 text-sm">
+                            {% for i in "12345" %}
+                                {% if forloop.counter <= product.average_rating %}
+                                    ★
+                                {% else %}
+                                    ☆
+                                {% endif %}
+                            {% endfor %}
+                            <span class="text-gray-400 text-xs ml-1">({{ product.ratings.count }})</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="mt-4 flex gap-2">
+                    <a href="{% url 'shop:product_detail' product.slug %}"
+                       class="w-1/2 text-center py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50">
+                        View Details
+                    </a>
+
+                    <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-1/2">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg">
+                            Add to Cart
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+
+        </div>
+
+        {% else %}
+        <div class="text-center bg-gray-100 rounded-xl p-10">
+            <i class="fas fa-search text-4xl text-gray-400 mb-4"></i>
+            <h2 class="text-xl font-semibold text-gray-700">No Products Found</h2>
+            <p class="text-gray-500 mb-4">Try adjusting filters or search again.</p>
+
+            <a href="{% url 'shop:product_list' %}" 
+               class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                Reset Filters
+            </a>
+        </div>
+        {% endif %}
+
+    </section>
+
+</div>
+
+{% endblock %}

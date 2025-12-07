@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Page Not Found | E-Shop{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <h1 class="display-1 text-danger">404</h1>
+    <h2 class="mb-4">Oops! Page Not Found</h2>
+    <p class="lead mb-4">
+        The page you are looking for does not exist or has been moved.
+    </p>
+    <a href="{% url 'shop:product_list' %}" class="btn btn-primary">
+        Go to Homepage
+    </a>
+</div>
+{% endblock %}

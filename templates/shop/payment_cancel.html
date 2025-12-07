@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Payment Canceled | E-Shop{% endblock %}
+
+{% block content %}
+<div class="card text-center py-5 my-5">
+    <div class="card-body">
+        <i class="fas fa-ban fa-5x text-warning mb-3"></i>
+        <h1 class="mb-3">Payment Canceled</h1>
+        <p class="lead mb-4">Your payment has been canceled. Your order has not been processed.</p>
+        <div class="d-grid gap-2 col-lg-6 mx-auto">
+            <a href="{% url 'shop:checkout' %}" class="btn btn-primary">Try Again</a>
+            <a href="{% url 'shop:cart_detail' %}" class="btn btn-outline-secondary">Back to Cart</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

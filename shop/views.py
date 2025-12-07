@@ -1,0 +1,423 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, authenticate, logout
+from django.contrib import messages
+from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+
+from .models import Category, Product, Cart, CartItem, Rating, Order, OrderItem
+from .forms import RegistrationForm, RatingForm, CheckoutForm
+from .utils import generate_sslcommerz_payment, send_order_confirmation_email
+
+
+# ============================================================
+# USER AUTH
+# ============================================================
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+
+        user = authenticate(request, username=username, password=password)
+
+        if user:
+            login(request, user)
+            return redirect("shop:profile")
+        else:
+            messages.error(request, "Invalid username or password")
+
+    return render(request, "shop/login.html")
+
+
+def register_view(request):
+    if request.method == "POST":
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, "Registration Successful!")
+            return redirect("shop:profile")
+    else:
+        form = RegistrationForm()
+
+    return render(request, "shop/register.html", {"form": form})
+
+
+def logout_view(request):
+    logout(request)
+    return redirect("shop:login")
+
+
+# ============================================================
+# HOME + PRODUCT LIST
+# ============================================================
+def home(request):
+    featured_products = Product.objects.filter(available=True).order_by("-created")[:8]
+    categories = Category.objects.all()
+
+    return render(
+        request,
+        "shop/home.html",
+        {"featured_products": featured_products, "categories": categories},
+    )
+
+
+def product_list(request, category_slug=None):
+    category = None
+    categories = Category.objects.all()
+    products = Product.objects.filter(available=True)
+
+    if category_slug:
+        category = get_object_or_404(Category, slug=category_slug)
+        products = products.filter(category=category)
+
+    if request.GET.get("search"):
+        q = request.GET.get("search")
+        products = products.filter(
+            Q(name__icontains=q)
+            | Q(description__icontains=q)
+            | Q(category__name__icontains=q)
+        )
+
+    return render(
+        request,
+        "shop/product_list.html",
+        {
+            "category": category,
+            "categories": categories,
+            "products": products,
+        },
+    )
+
+
+# ============================================================
+# PRODUCT DETAIL
+# ============================================================
+def product_detail(request, slug):
+    product = get_object_or_404(Product, slug=slug, available=True)
+    related_products = Product.objects.filter(category=product.category).exclude(
+        id=product.id
+    )
+
+    user_rating = None
+    if request.user.is_authenticated:
+        try:
+            user_rating = Rating.objects.get(product=product, user=request.user)
+        except Rating.DoesNotExist:
+            user_rating = None
+
+    rating_form = RatingForm(instance=user_rating)
+
+    return render(
+        request,
+        "shop/product_detail.html",
+        {
+            "product": product,
+            "related_products": related_products,
+            "user_rating": user_rating,
+            "rating_form": rating_form,
+        },
+    )
+
+
+# ============================================================
+# CART SYSTEM (supports guest)
+# ============================================================
+def _get_cart(request):
+    # logged-in user cart
+    if request.user.is_authenticated:
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        return cart
+
+    # guest cart from session
+    cart_data = request.session.get("guest_cart", {})
+
+    class GuestItem:
+        def __init__(self, product, qty):
+            self.product = product
+            self.quantity = qty
+
+        @property
+        def get_cost(self):
+            return self.product.price * self.quantity
+
+    class GuestCart:
+        def __init__(self, d):
+            self.items = [
+                GuestItem(Product.objects.get(id=int(pid)), qty)
+                for pid, qty in d.items()
+            ]
+
+        def get_total_price(self):
+            return sum(i.get_cost for i in self.items)
+
+        def get_total_items(self):
+            return sum(i.quantity for i in self.items)
+
+    return GuestCart(cart_data)
+
+
+def cart_detail(request):
+    return render(request, "shop/cart.html", {"cart": _get_cart(request)})
+
+
+def cart_add(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+
+    if request.user.is_authenticated:
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+        if created:
+            item.quantity = 1
+        else:
+            item.quantity += 1
+        item.save()
+    else:
+        cart = request.session.get("guest_cart", {})
+        cart[str(product_id)] = cart.get(str(product_id), 0) + 1
+        request.session["guest_cart"] = cart
+
+    messages.success(request, f"{product.name} added to cart.")
+    return redirect("shop:product_detail", slug=product.slug)
+
+
+def cart_remove(request, product_id):
+    if request.user.is_authenticated:
+        cart = Cart.objects.get(user=request.user)
+        CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+    else:
+        cart = request.session.get("guest_cart", {})
+        cart.pop(str(product_id), None)
+        request.session["guest_cart"] = cart
+
+    return redirect("shop:cart_detail")
+
+
+def cart_update(request, product_id):
+    qty = int(request.POST.get("quantity", 1))
+
+    if request.user.is_authenticated:
+        cart = Cart.objects.get(user=request.user)
+        item = CartItem.objects.get(cart=cart, product_id=product_id)
+        if qty <= 0:
+            item.delete()
+        else:
+            item.quantity = qty
+            item.save()
+    else:
+        cart = request.session.get("guest_cart", {})
+        if qty <= 0:
+            cart.pop(str(product_id), None)
+        else:
+            cart[str(product_id)] = qty
+        request.session["guest_cart"] = cart
+
+    return redirect("shop:cart_detail")
+
+
+# ============================================================
+# CHECKOUT (Name + Phone + Address + Delivery + Buy Now)
+# ============================================================
+@csrf_exempt
+def checkout(request):
+    # BUY NOW support (?buy_now_id=)
+    buy_now_id = request.GET.get("buy_now_id")
+    if buy_now_id:
+        request.session["buy_now_id"] = str(buy_now_id)
+
+    buy_now_id = request.session.get("buy_now_id")
+    product_for_buy_now = None
+
+    # --------- determine cart ----------
+    if buy_now_id:
+        product_for_buy_now = get_object_or_404(Product, id=buy_now_id)
+
+        class BuyNowItem:
+            def __init__(self, product):
+                self.product = product
+                self.quantity = 1
+
+            @property
+            def get_cost(self):
+                return self.product.price
+
+        class BuyNowCart:
+            def __init__(self, product):
+                self.items = [BuyNowItem(product)]
+
+            def get_total_price(self):
+                return self.items[0].get_cost
+
+            def get_total_items(self):
+                return 1
+
+        cart = BuyNowCart(product_for_buy_now)
+        is_buy_now = True
+    else:
+        cart = _get_cart(request)
+        is_buy_now = False
+
+        if not getattr(cart, "items", None):
+            messages.warning(request, "Your cart is empty.")
+            return redirect("shop:cart_detail")
+
+    # Preview totals (default Dhaka charge)
+    subtotal = cart.get_total_price()
+    delivery_preview = 70
+    total_preview = subtotal + delivery_preview
+
+    # --------- POST / GET ----------
+    if request.method == "POST":
+        form = CheckoutForm(request.POST)
+
+        if form.is_valid():
+            order = form.save(commit=False)
+
+            # delivery charge set here
+            if order.delivery_area == "dhaka":
+                order.delivery_charge = 70
+            else:
+                order.delivery_charge = 120
+
+            if request.user.is_authenticated:
+                order.user = request.user
+
+            order.save()
+
+            # order items
+            if is_buy_now:
+                OrderItem.objects.create(
+                    order=order,
+                    product=product_for_buy_now,
+                    quantity=1,
+                    price=product_for_buy_now.price,
+                )
+                request.session.pop("buy_now_id", None)
+            else:
+                for item in cart.items:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=item.product,
+                        quantity=item.quantity,
+                        price=item.product.price,
+                    )
+
+                # clear cart
+                if request.user.is_authenticated:
+                    CartItem.objects.filter(cart__user=request.user).delete()
+                else:
+                    request.session["guest_cart"] = {}
+
+            # COD → success page, SSL → redirect to gateway
+            if order.payment_method == "cod":
+                return render(request, "shop/payment_success.html", {"order": order})
+
+            request.session["order_id"] = order.id
+            return redirect("shop:payment_process")
+
+        # form invalid হলে এইখানে fall-through হবে,
+        # template এ error দেখাবে
+    else:
+        form = CheckoutForm()
+
+    return render(
+        request,
+        "shop/checkout.html",
+        {
+            "cart": cart,
+            "form": form,
+            "subtotal": subtotal,
+            "delivery_preview": delivery_preview,
+            "total_preview": total_preview,
+            "is_buy_now": is_buy_now,
+        },
+    )
+
+
+# ============================================================
+# PAYMENT
+# ============================================================
+def payment_process(request):
+    order_id = request.session.get("order_id")
+    order = get_object_or_404(Order, id=order_id)
+
+    payment = generate_sslcommerz_payment(order, request)
+
+    if payment["status"] == "SUCCESS":
+        return redirect(payment["GatewayPageURL"])
+
+    messages.error(request, "Payment gateway error.")
+    return redirect("shop:checkout")
+
+
+@csrf_exempt
+def payment_success(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    order.paid = True
+    order.status = "processing"
+    order.transaction_id = order_id
+    order.save()
+
+    send_order_confirmation_email(order)
+    return render(request, "shop/payment_success.html", {"order": order})
+
+
+@csrf_exempt
+def payment_fail(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    order.status = "canceled"
+    order.save()
+    return redirect("shop:checkout")
+
+
+@csrf_exempt
+def payment_cancel(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    order.status = "canceled"
+    order.save()
+    return redirect("shop:cart_detail")
+
+
+# ============================================================
+# PROFILE + RATING + 404
+# ============================================================
+def profile(request):
+    if not request.user.is_authenticated:
+        return redirect("shop:login")
+
+    orders = Order.objects.filter(user=request.user).order_by("-created")
+    return render(request, "shop/profile.html", {"orders": orders})
+
+
+@login_required(login_url="/login/")
+def rate_product(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+
+    purchased = OrderItem.objects.filter(
+        order__user=request.user, order__paid=True, product=product
+    ).exists()
+
+    if not purchased:
+        messages.error(request, "You can only review products you have purchased.")
+        return redirect("shop:product_detail", slug=product.slug)
+
+    try:
+        rating = Rating.objects.get(product=product, user=request.user)
+    except Rating.DoesNotExist:
+        rating = None
+
+    form = RatingForm(request.POST or None, instance=rating)
+
+    if request.method == "POST" and form.is_valid():
+        obj = form.save(commit=False)
+        obj.product = product
+        obj.user = request.user
+        obj.save()
+        messages.success(request, "Your review has been submitted.")
+        return redirect("shop:product_detail", slug=product.slug)
+
+    return render(request, "shop/rate_product.html", {"form": form, "product": product})
+
+
+def custom_404_view(request, exception):
+    return render(request, "shop/404.html", status=404)

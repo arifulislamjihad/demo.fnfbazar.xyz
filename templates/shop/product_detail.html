@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} | E-Shop{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav class="text-sm mb-6">
+    <ol class="flex flex-wrap gap-2 text-gray-500">
+        <li><a href="{% url 'shop:home' %}" class="text-purple-600 hover:underline">Home</a></li>
+        <span>/</span>
+        <li><a href="{% url 'shop:product_list' %}" class="text-purple-600 hover:underline">Products</a></li>
+        <span>/</span>
+        <li><a href="{% url 'shop:product_list_by_category' product.category.slug %}" class="text-purple-600 hover:underline">{{ product.category.name }}</a></li>
+        <span>/</span>
+        <li class="text-gray-700 font-semibold">{{ product.name }}</li>
+    </ol>
+</nav>
+
+<!-- Product Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+
+    <!-- Product Image -->
+    <div class="relative group">
+        {% if product.image %}
+            <img src="{{ product.image.url }}" 
+                 class="w-full rounded-xl shadow-md object-cover transition-transform duration-300 group-hover:scale-105 cursor-zoom-in">
+        {% else %}
+            <div class="w-full h-80 bg-gray-200 flex items-center justify-center rounded-xl">
+                <i class="fas fa-image text-5xl text-gray-400"></i>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Product Info -->
+    <div>
+
+        <h1 class="text-3xl font-bold text-gray-800 mb-3">{{ product.name }}</h1>
+
+        <!-- Ratings -->
+        <div class="flex items-center gap-2 mb-3">
+            <div class="text-yellow-400 text-lg">
+                {% for i in "12345" %}
+                    {% if forloop.counter <= product.average_rating %}
+                        ★
+                    {% else %}
+                        ☆
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <span class="text-gray-600 text-sm">
+                {{ product.ratings.count }} review{{ product.ratings.count|pluralize }}
+            </span>
+        </div>
+
+        <!-- Price -->
+        <div class="text-4xl font-extrabold text-purple-600 mb-4">
+            ৳{{ product.price }}
+        </div>
+
+        <!-- Short Description -->
+        <p class="text-gray-600 text-lg leading-relaxed mb-6">
+            {{ product.description }}
+        </p>
+
+        <!-- Stock & Category Badges -->
+        <div class="flex flex-wrap gap-3 mb-6">
+            {% if product.stock > 0 %}
+                <span class="bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow">
+                    In Stock ({{ product.stock }})
+                </span>
+            {% else %}
+                <span class="bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow">
+                    Out of Stock
+                </span>
+            {% endif %}
+
+            <span class="bg-gray-100 text-gray-700 px-4 py-1 rounded-full text-sm border shadow-sm">
+                {{ product.category.name }}
+            </span>
+        </div>
+
+        <!-- Action Buttons -->
+        {% if product.stock > 0 %}
+        <div class="flex flex-col sm:flex-row gap-4 mt-6">
+
+            <!-- Add to Cart -->
+            <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-full sm:w-1/2">
+                {% csrf_token %}
+                <button type="submit"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition">
+                    <i class="fas fa-shopping-cart mr-2"></i> Add to Cart
+                </button>
+            </form>
+
+            <!-- Buy Now (Direct Checkout) -->
+            <form action="{% url 'shop:checkout' %}" method="get" class="w-full sm:w-1/2">
+                <input type="hidden" name="buy_now_id" value="{{ product.id }}">
+                <button type="submit"
+                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition">
+                    <i class="fas fa-bolt mr-2"></i> Buy Now
+                </button>
+            </form>
+
+        </div>
+        {% endif %}
+
+        <!-- Trust Badges -->
+        <div class="mt-8 grid grid-cols-3 gap-4 text-center text-gray-600 text-sm">
+            <div class="border p-4 rounded-lg shadow-sm bg-white">
+                <i class="fas fa-truck text-purple-600 text-xl mb-2"></i>
+                <p>Fast Delivery</p>
+            </div>
+            <div class="border p-4 rounded-lg shadow-sm bg-white">
+                <i class="fas fa-shield-alt text-purple-600 text-xl mb-2"></i>
+                <p>Secure Payment</p>
+            </div>
+            <div class="border p-4 rounded-lg shadow-sm bg-white">
+                <i class="fas fa-undo text-purple-600 text-xl mb-2"></i>
+                <p>Easy Returns</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Reviews -->
+<div class="mt-16">
+    <h2 class="text-2xl font-bold mb-4">Customer Reviews</h2>
+    <div class="border-b mb-6"></div>
+
+    {% if product.ratings.count > 0 %}
+        {% for rating in product.ratings.all %}
+        <div class="bg-white shadow rounded-xl p-5 mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <p class="font-semibold text-gray-800">{{ rating.user.username }}</p>
+                <span class="text-yellow-400 text-lg">
+                    {% for i in "12345" %}
+                        {% if forloop.counter <= rating.rating %}★{% else %}☆{% endif %}
+                    {% endfor %}
+                </span>
+            </div>
+            <p class="text-gray-400 text-sm">{{ rating.created|date:"F d, Y" }}</p>
+            <p class="text-gray-700 mt-2">{{ rating.comment }}</p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-gray-500">No reviews yet. Be the first to review!</p>
+    {% endif %}
+
+    {% if user.is_authenticated %}
+        <a href="{% url 'shop:rate_product' product.id %}"
+           class="mt-6 inline-block bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg shadow">
+            Write a Review
+        </a>
+    {% else %}
+        <p class="mt-6 text-blue-700">
+            Please <a href="{% url 'shop:login' %}?next={{ request.path }}" class="underline font-semibold">log in</a> to write a review.
+        </p>
+    {% endif %}
+</div>
+
+<!-- Related Products -->
+{% if related_products %}
+<div class="mt-16">
+    <h3 class="text-2xl font-bold mb-6">Related Products</h3>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {% for rp in related_products %}
+        <div class="bg-white border rounded-xl shadow hover:shadow-lg transition overflow-hidden">
+
+            <a href="{% url 'shop:product_detail' rp.slug %}">
+                <img src="{{ rp.image.url }}" class="w-full h-48 object-cover" />
+            </a>
+
+            <div class="p-4">
+                <h4 class="font-semibold text-gray-800 line-clamp-2">{{ rp.name }}</h4>
+
+                <div class="flex justify-between items-center mt-2">
+                    <p class="font-bold text-purple-600 text-lg">৳{{ rp.price }}</p>
+                    <span class="text-yellow-400 text-sm">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= rp.average_rating %}★{% else %}☆{% endif %}
+                        {% endfor %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex p-4 gap-2 border-t">
+                <a href="{% url 'shop:product_detail' rp.slug %}"
+                   class="w-1/2 text-center border border-purple-600 text-purple-600 py-2 rounded-lg hover:bg-purple-50 text-sm">
+                    View Details
+                </a>
+
+                <form method="post" action="{% url 'shop:cart_add' rp.id %}" class="w-1/2">
+                    {% csrf_token %}
+                    <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-sm">
+                        Add to Cart
+                    </button>
+                </form>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

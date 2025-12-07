@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Checkout | E-Shop{% endblock %}
+
+{% block content %}
+
+<h1 class="text-3xl font-bold text-gray-800 mb-6">Checkout</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+  <!-- LEFT: FORM -->
+  <div class="lg:col-span-2">
+
+    <form method="post" action="{% url 'shop:checkout' %}" class="space-y-6">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="bg-red-50 text-red-700 px-4 py-3 rounded-lg">
+        {% for err in form.non_field_errors %}
+          <p>{{ err }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Name -->
+      <div>
+        <label class="block font-medium text-gray-700 mb-1">Name</label>
+        {{ form.name }}
+        {% for err in form.name.errors %}
+          <p class="text-sm text-red-500">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Phone -->
+      <div>
+        <label class="block font-medium text-gray-700 mb-1">Phone</label>
+        {{ form.phone }}
+        {% for err in form.phone.errors %}
+          <p class="text-sm text-red-500">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Address -->
+      <div>
+        <label class="block font-medium text-gray-700 mb-1">Address</label>
+        {{ form.address }}
+        {% for err in form.address.errors %}
+          <p class="text-sm text-red-500">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Delivery Area -->
+      <div>
+        <label class="block font-medium text-gray-700 mb-1">Delivery Area</label>
+        {{ form.delivery_area }}
+        {% for err in form.delivery_area.errors %}
+          <p class="text-sm text-red-500">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Payment Method -->
+      <div>
+        <label class="block font-medium text-gray-700 mb-2">Payment Method</label>
+        <div class="space-y-2">
+          {{ form.payment_method }}
+        </div>
+        {% for err in form.payment_method.errors %}
+          <p class="text-sm text-red-500">{{ err }}</p>
+        {% endfor %}
+      </div>
+
+      <!-- Submit -->
+      <button
+        type="submit"
+        class="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-semibold shadow mt-4">
+        Place Order
+      </button>
+    </form>
+
+  </div>
+
+  <!-- RIGHT: ORDER SUMMARY -->
+  <div class="bg-white shadow rounded-xl p-6 h-fit sticky top-24">
+
+    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+      <i class="fas fa-shopping-basket text-purple-600"></i> Order Summary
+    </h2>
+
+    <div class="space-y-4">
+      {% for item in cart.items %}
+      <div class="flex items-center gap-4 pb-4 border-b">
+
+        {% if item.product.image %}
+          <img src="{{ item.product.image.url }}" class="w-16 h-16 rounded-lg object-cover">
+        {% else %}
+          <div class="w-16 h-16 bg-gray-200 flex items-center justify-center rounded-lg">
+            <i class="fas fa-image text-gray-400 text-xl"></i>
+          </div>
+        {% endif %}
+
+        <div class="flex-1">
+          <h4 class="font-semibold text-gray-800">{{ item.product.name }}</h4>
+          <p class="text-gray-500 text-sm">
+            {{ item.quantity }} × ৳{{ item.product.price }}
+          </p>
+        </div>
+
+        <div class="font-bold text-gray-800">
+          ৳{{ item.get_cost }}
+        </div>
+
+      </div>
+      {% empty %}
+      <p class="text-gray-500 text-sm">Your cart is empty.</p>
+      {% endfor %}
+    </div>
+
+    <div class="mt-6 pt-4 border-t text-sm">
+      <div class="flex justify-between py-1">
+        <span>Subtotal</span>
+        <span>৳{{ subtotal }}</span>
+      </div>
+      <div class="flex justify-between py-1">
+        <span>Delivery Charge (preview)</span>
+        <span>৳{{ delivery_preview }}</span>
+      </div>
+      <div class="flex justify-between font-bold text-lg text-purple-600 mt-3">
+        <span>Total</span>
+        <span>৳{{ total_preview }}</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

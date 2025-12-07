@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Rate {{ product.name }} | E-Shop{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'shop:home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'shop:product_detail' product.slug %}">{{ product.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Write a Review</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header">
+                <h5 class="mb-0">Rate {{ product.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="flex-shrink-0">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" alt="{{ product.name }}" 
+                             class="img-thumbnail" style="width: 100px; height: 100px; object-fit: cover;">
+                        {% else %}
+                        <div class="bg-light text-center" style="width: 100px; height: 100px;">
+                            <i class="fas fa-image fa-3x text-muted d-flex justify-content-center align-items-center h-100"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="mb-1">{{ product.name }}</h5>
+                        <p class="text-muted mb-0">{{ product.category.name }}</p>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.rating.id_for_label }}" class="form-label">Rating</label>
+                        {{ form.rating.errors }}
+                        <select class="form-select {% if form.rating.errors %}is-invalid{% endif %}" 
+                                id="{{ form.rating.id_for_label }}" name="{{ form.rating.html_name }}" required>
+                            <option value="" disabled {% if not form.rating.value %}selected{% endif %}>Select rating</option>
+                            <option value="5" {% if form.rating.value == 5 %}selected{% endif %}>★★★★★ (5) Excellent</option>
+                            <option value="4" {% if form.rating.value == 4 %}selected{% endif %}>★★★★☆ (4) Very Good</option>
+                            <option value="3" {% if form.rating.value == 3 %}selected{% endif %}>★★★☆☆ (3) Good</option>
+                            <option value="2" {% if form.rating.value == 2 %}selected{% endif %}>★★☆☆☆ (2) Fair</option>
+                            <option value="1" {% if form.rating.value == 1 %}selected{% endif %}>★☆☆☆☆ (1) Poor</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.comment.id_for_label }}" class="form-label">Your Review</label>
+                        {{ form.comment.errors }}
+                        <textarea class="form-control {% if form.comment.errors %}is-invalid{% endif %}" 
+                                  id="{{ form.comment.id_for_label }}" name="{{ form.comment.html_name }}" rows="5">{{ form.comment.value|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Submit Review</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

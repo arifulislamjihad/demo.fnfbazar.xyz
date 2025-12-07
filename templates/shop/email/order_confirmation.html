@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - Order #{{ order.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .order-info {
+            margin-bottom: 20px;
+        }
+        .order-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .order-items th, .order-items td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .order-items th {
+            background-color: #f5f5f5;
+        }
+        .order-total {
+            text-align: right;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+        .shipping-info {
+            margin-top: 20px;
+        }
+        h3 {
+            color: #007bff;
+        }
+        /* Mobile optimization */
+        @media screen and (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+            .order-items th, .order-items td {
+                padding: 8px;
+            }
+            .logo {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">E-Shop</div>
+        <p>Thank you for your order!</p>
+    </div>
+    
+    <div class="order-info">
+        <h2>Order Confirmation</h2>
+        <p>Hi {{ order.first_name }},</p>
+        <p>Your order has been confirmed and is now being processed. Here's a summary of your order:</p>
+        
+        <p><strong>Order #:</strong> {{ order.id }}</p>
+        <p><strong>Order Date:</strong> {{ order.created|date:"F d, Y H:i" }}</p>
+        <p><strong>Payment Status:</strong> Paid</p>
+        <p><strong>Transaction ID:</strong> {{ order.transaction_id }}</p>
+    </div>
+    
+    <h3>Order Details</h3>
+    <table class="order-items">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order.items.all %}
+            <tr>
+                <td>{{ item.product.name }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>৳{{ item.price }}</td>
+                <td>৳{{ item.get_cost }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="order-total">
+        <p>Total: ৳{{ order.get_total_cost }}</p>
+    </div>
+    
+    <div class="shipping-info">
+        <h3>Shipping Information</h3>
+        <p>
+            {{ order.first_name }} {{ order.last_name }}<br>
+            {{ order.address }}<br>
+            {{ order.city }}, {{ order.postal_code }}
+        </p>
+    </div>
+    
+    <p>We'll notify you when your order has been shipped. If you have any questions, please contact our customer service.</p>
+    
+    <p>Thank you for shopping with us!</p>
+    
+    <div class="footer">
+        <p>© 2025 E-Shop. All rights reserved.</p>
+        <p>This email was sent to {{ order.email }}</p>
+    </div>
+</body>
+</html>
