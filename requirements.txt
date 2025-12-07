@@ -5,3 +5,4 @@ requests
 PyJWT
 sqlparse
 cryptography
+python-dotenv
