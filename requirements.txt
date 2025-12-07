@@ -6,3 +6,8 @@ PyJWT
 sqlparse
 cryptography
 python-dotenv
+gunicorn
+psycopg2-binary
+whitenoise
+
+
