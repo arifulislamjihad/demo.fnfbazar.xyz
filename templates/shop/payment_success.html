@@ -8,7 +8,7 @@
         <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
         <h1 class="mb-3">Payment Successful!</h1>
         <p class="lead mb-4">Thank you for your purchase. Your order #{{ order.id }} has been confirmed.</p>
-        <p class="mb-4">A confirmation email has been sent to {{ order.email }}.</p>
+        <p class="mb-4">A confirmation email has been sent to {{ order.email }}</p>
         <p class="mb-5">Your transaction ID: <strong>{{ order.transaction_id }}</strong></p>
         <div class="d-grid gap-2 col-lg-6 mx-auto">
             <a href="{% url 'shop:profile' %}" class="btn btn-primary">View Your Orders</a>
@@ -16,4 +16,31 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% if FACEBOOK_PIXEL_ID and order %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        if (typeof fbq === 'undefined') {
+            return;
+        }
+
+        const items = [
+            {% for item in order.items.all %}
+            {id: '{{ item.product.id }}', quantity: {{ item.quantity }} }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        fbq('track', 'Purchase', {
+            contents: items,
+            content_ids: items.map(function (it) { return it.id; }),
+            content_type: 'product',
+            value: {{ order.get_total_cost|floatformat:2 }},
+            currency: 'BDT'
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}

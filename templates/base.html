@@ -3,17 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}E-Shop{% endblock %}</title>
+    <title>
+        {% block title %}
+            {{ site_settings.site_name|default:"E-Shop" }}
+        {% endblock %}
+    </title>
     {% load static %}
-    
+
+    <!-- Facebook Pixel Code (global) -->
+    {% if FACEBOOK_PIXEL_ID %}
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        s=b.getElementsByTagName(e)[0];
+        t.src='https://connect.facebook.net/en_US/fbevents.js';
+        s.parentNode.insertBefore(t,s)}(window, document,'script');
+
+        fbq('init', '{{ FACEBOOK_PIXEL_ID }}');
+        fbq('track', 'PageView');
+    </script>
+    <noscript>
+        <img height="1" width="1" style="display:none"
+             src="https://www.facebook.com/tr?id={{ FACEBOOK_PIXEL_ID }}&ev=PageView&noscript=1"/>
+    </noscript>
+    {% endif %}
+    <!-- End Facebook Pixel Code -->
+
     <!-- Tailwind CSS -->
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <!-- Google Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet">
 
     <style>
         body { font-family: 'Poppins', sans-serif; }
@@ -27,7 +55,19 @@
     <!-- Navbar -->
     <header class="bg-white shadow-md sticky top-0 z-50">
         <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
-            <a href="{% url 'shop:home' %}" class="text-2xl font-bold text-purple-600">E-Shop</a>
+
+            <!-- Logo / Site Name -->
+            <a href="{% url 'shop:home' %}" class="flex items-center space-x-2">
+                {% if site_settings and site_settings.logo %}
+                    <img src="{{ site_settings.logo.url }}"
+                         alt="{{ site_settings.site_name|default:'E-Shop' }}"
+                         class="h-10 w-auto rounded">
+                {% else %}
+                    <span class="text-2xl font-bold text-purple-600">
+                        {{ site_settings.site_name|default:"E-Shop" }}
+                    </span>
+                {% endif %}
+            </a>
 
             <!-- Mobile Menu Button -->
             <button id="menu-btn" class="lg:hidden text-gray-700 text-2xl">
@@ -46,7 +86,7 @@
                 <!-- Search -->
                 <form action="{% url 'shop:product_list' %}" method="get" class="flex">
                     <input name="search" type="text" placeholder="Search..."
-                        class="px-3 py-2 border border-gray-300 rounded-l-full focus:ring-2 focus:ring-purple-300 outline-none">
+                           class="px-3 py-2 border border-gray-300 rounded-l-full focus:ring-2 focus:ring-purple-300 outline-none">
                     <button class="bg-purple-600 text-white px-4 rounded-r-full">
                         <i class="fas fa-search"></i>
                     </button>
@@ -56,9 +96,9 @@
                 <a href="{% url 'shop:cart_detail' %}" class="relative text-gray-700 hover:text-purple-600">
                     <i class="fas fa-shopping-cart text-2xl"></i>
                     {% if cart_items_count %}
-                    <span class="absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
-                        {{ cart_items_count }}
-                    </span>
+                        <span class="absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            {{ cart_items_count }}
+                        </span>
                     {% endif %}
                 </a>
 
@@ -75,10 +115,12 @@
                         </div>
                     </div>
                 {% else %}
-                    <a href="{% url 'shop:login' %}" class="px-4 py-2 border border-purple-600 text-purple-600 rounded-full hover:bg-purple-600 hover:text-white transition">
+                    <a href="{% url 'shop:login' %}"
+                       class="px-4 py-2 border border-purple-600 text-purple-600 rounded-full hover:bg-purple-600 hover:text-white transition">
                         Login
                     </a>
-                    <a href="{% url 'shop:register' %}" class="px-4 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition">
+                    <a href="{% url 'shop:register' %}"
+                       class="px-4 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition">
                         Register
                     </a>
                 {% endif %}
@@ -86,7 +128,8 @@
         </nav>
 
         <!-- Mobile Dropdown -->
-        <ul id="mobile-menu" class="hidden lg:hidden bg-white shadow-md px-6 pb-4 space-y-3 text-gray-700 font-medium">
+        <ul id="mobile-menu"
+            class="hidden lg:hidden bg-white shadow-md px-6 pb-4 space-y-3 text-gray-700 font-medium">
             <li><a href="{% url 'shop:home' %}" class="block py-2">Home</a></li>
             <li><a href="{% url 'shop:product_list' %}" class="block py-2">Products</a></li>
         </ul>
@@ -104,13 +147,13 @@
         {% if messages %}
             <div class="mb-4">
                 {% for message in messages %}
-                <div class="p-4 mb-2 rounded-lg text-white 
-                    {% if message.tags == 'success' %} bg-green-500
-                    {% elif message.tags == 'info' %} bg-blue-500
-                    {% elif message.tags == 'warning' %} bg-yellow-500
-                    {% else %} bg-red-500{% endif %}">
-                    {{ message }}
-                </div>
+                    <div class="p-4 mb-2 rounded-lg text-white
+                        {% if message.tags == 'success' %} bg-green-500
+                        {% elif message.tags == 'info' %} bg-blue-500
+                        {% elif message.tags == 'warning' %} bg-yellow-500
+                        {% else %} bg-red-500{% endif %}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
             </div>
         {% endif %}
@@ -124,7 +167,9 @@
 
             <div>
                 <h3 class="text-xl font-semibold text-purple-600 mb-3">About Us</h3>
-                <p class="text-gray-600">We provide high-quality products at affordable prices.</p>
+                <p class="text-gray-600">
+                    We provide high-quality products at affordable prices.
+                </p>
             </div>
 
             <div>
@@ -143,7 +188,9 @@
             </div>
         </div>
 
-        <p class="text-center text-gray-600 mt-6">&copy; {% now "Y" %} E-Shop. All rights reserved.</p>
+        <p class="text-center text-gray-600 mt-6">
+            &copy; {% now "Y" %} {{ site_settings.site_name|default:"E-Shop" }}. All rights reserved.
+        </p>
     </footer>
 
     {% block extra_js %}{% endblock %}

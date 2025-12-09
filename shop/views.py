@@ -1,11 +1,23 @@
+import json
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
+        # login_required নিচে কিছু জায়গায় ব্যবহার হয়েছে
 from django.contrib.auth.decorators import login_required
 
-from .models import Category, Product, Cart, CartItem, Rating, Order, OrderItem
+from .models import (
+    Category,
+    Product,
+    Cart,
+    CartItem,
+    Rating,
+    Order,
+    OrderItem,
+    ProductVariant,
+)
 from .forms import RegistrationForm, RatingForm, CheckoutForm
 from .utils import generate_sslcommerz_payment, send_order_confirmation_email
 
@@ -91,14 +103,15 @@ def product_list(request, category_slug=None):
 
 
 # ============================================================
-# PRODUCT DETAIL
+# PRODUCT DETAIL (with variants)
 # ============================================================
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
-    related_products = Product.objects.filter(category=product.category).exclude(
-        id=product.id
-    )
+    related_products = Product.objects.filter(
+        category=product.category, available=True
+    ).exclude(id=product.id)
 
+    # User rating
     user_rating = None
     if request.user.is_authenticated:
         try:
@@ -108,6 +121,35 @@ def product_detail(request, slug):
 
     rating_form = RatingForm(instance=user_rating)
 
+    # Variants data (if any)
+    variants = (
+        product.variants.filter(is_active=True)
+        .prefetch_related("attribute_values__attribute")
+    )
+
+    # attribute map: {attr_id: {"attribute": attr, "values": [AttributeValue,...]}}
+    attribute_map = {}
+    for v in variants:
+        for av in v.attribute_values.all():
+            attr = av.attribute
+            if attr.id not in attribute_map:
+                attribute_map[attr.id] = {"attribute": attr, "values": []}
+            if av not in attribute_map[attr.id]["values"]:
+                attribute_map[attr.id]["values"].append(av)
+
+    # variant combination map for JS
+    # key = "attrId:valId|attrId:valId"
+    variant_map = {}
+    for v in variants:
+        parts = [f"{av.attribute_id}:{av.id}" for av in v.attribute_values.all()]
+        parts.sort()
+        key = "|".join(parts)
+        variant_map[key] = {
+            "id": v.id,
+            "price": float(v.get_price()),
+            "stock": v.stock,
+        }
+
     return render(
         request,
         "shop/product_detail.html",
@@ -116,6 +158,8 @@ def product_detail(request, slug):
             "related_products": related_products,
             "user_rating": user_rating,
             "rating_form": rating_form,
+            "variant_attributes": attribute_map,
+            "variant_map_json": json.dumps(variant_map),
         },
     )
 
@@ -133,20 +177,38 @@ def _get_cart(request):
     cart_data = request.session.get("guest_cart", {})
 
     class GuestItem:
-        def __init__(self, product, qty):
+        def __init__(self, product, variant, qty):
             self.product = product
+            self.variant = variant
             self.quantity = qty
+
+        def get_unit_price(self):
+            if self.variant:
+                return self.variant.get_price()
+            return self.product.price
 
         @property
         def get_cost(self):
-            return self.product.price * self.quantity
+            return self.get_unit_price() * self.quantity
 
     class GuestCart:
         def __init__(self, d):
-            self.items = [
-                GuestItem(Product.objects.get(id=int(pid)), qty)
-                for pid, qty in d.items()
-            ]
+            items = []
+            for key, qty in d.items():
+                try:
+                    if ":" in key:
+                        pid, vid = key.split(":", 1)
+                        product = Product.objects.get(id=int(pid))
+                        variant = ProductVariant.objects.get(
+                            id=int(vid), product=product
+                        )
+                    else:
+                        product = Product.objects.get(id=int(key))
+                        variant = None
+                    items.append(GuestItem(product, variant, qty))
+                except (Product.DoesNotExist, ProductVariant.DoesNotExist, ValueError):
+                    continue
+            self.items = items
 
         def get_total_price(self):
             return sum(i.get_cost for i in self.items)
@@ -162,19 +224,40 @@ def cart_detail(request):
 
 
 def cart_add(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
+    product = get_object_or_404(Product, id=product_id, available=True)
+    quantity = int(request.POST.get("quantity", 1) or 1)
+    if quantity < 1:
+        quantity = 1
+
+    variant_id = request.POST.get("variant_id")
+    variant = None
+    if variant_id:
+        variant = get_object_or_404(
+            ProductVariant,
+            id=variant_id,
+            product=product,
+            is_active=True,
+        )
 
     if request.user.is_authenticated:
         cart, _ = Cart.objects.get_or_create(user=request.user)
-        item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+        item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            variant=variant,
+        )
         if created:
-            item.quantity = 1
+            item.quantity = quantity
         else:
-            item.quantity += 1
+            item.quantity += quantity
         item.save()
     else:
         cart = request.session.get("guest_cart", {})
-        cart[str(product_id)] = cart.get(str(product_id), 0) + 1
+        if variant:
+            key = f"{product_id}:{variant.id}"
+        else:
+            key = str(product_id)
+        cart[key] = cart.get(key, 0) + quantity
         request.session["guest_cart"] = cart
 
     messages.success(request, f"{product.name} added to cart.")
@@ -187,14 +270,16 @@ def cart_remove(request, product_id):
         CartItem.objects.filter(cart=cart, product_id=product_id).delete()
     else:
         cart = request.session.get("guest_cart", {})
-        cart.pop(str(product_id), None)
+        keys_to_remove = [k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)]
+        for k in keys_to_remove:
+            cart.pop(k, None)
         request.session["guest_cart"] = cart
 
     return redirect("shop:cart_detail")
 
 
 def cart_update(request, product_id):
-    qty = int(request.POST.get("quantity", 1))
+    qty = int(request.POST.get("quantity", 1) or 1)
 
     if request.user.is_authenticated:
         cart = Cart.objects.get(user=request.user)
@@ -206,10 +291,16 @@ def cart_update(request, product_id):
             item.save()
     else:
         cart = request.session.get("guest_cart", {})
+        matching_keys = [k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)]
         if qty <= 0:
-            cart.pop(str(product_id), None)
+            for k in matching_keys:
+                cart.pop(k, None)
         else:
-            cart[str(product_id)] = qty
+            if matching_keys:
+                first = matching_keys[0]
+                cart[first] = qty
+                for k in matching_keys[1:]:
+                    cart.pop(k, None)
         request.session["guest_cart"] = cart
 
     return redirect("shop:cart_detail")
@@ -235,11 +326,15 @@ def checkout(request):
         class BuyNowItem:
             def __init__(self, product):
                 self.product = product
+                self.variant = None
                 self.quantity = 1
+
+            def get_unit_price(self):
+                return self.product.price
 
             @property
             def get_cost(self):
-                return self.product.price
+                return self.get_unit_price()
 
         class BuyNowCart:
             def __init__(self, product):
@@ -289,17 +384,24 @@ def checkout(request):
                 OrderItem.objects.create(
                     order=order,
                     product=product_for_buy_now,
+                    variant=None,
                     quantity=1,
                     price=product_for_buy_now.price,
                 )
                 request.session.pop("buy_now_id", None)
             else:
                 for item in cart.items:
+                    unit_price = (
+                        item.get_unit_price()
+                        if hasattr(item, "get_unit_price")
+                        else item.product.price
+                    )
                     OrderItem.objects.create(
                         order=order,
                         product=item.product,
+                        variant=getattr(item, "variant", None),
                         quantity=item.quantity,
-                        price=item.product.price,
+                        price=unit_price,
                     )
 
                 # clear cart
@@ -315,8 +417,6 @@ def checkout(request):
             request.session["order_id"] = order.id
             return redirect("shop:payment_process")
 
-        # form invalid হলে এইখানে fall-through হবে,
-        # template এ error দেখাবে
     else:
         form = CheckoutForm()
 

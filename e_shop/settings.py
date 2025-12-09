@@ -40,7 +40,7 @@ print("🔵 DEBUG:", DEBUG)
 print("🔵 ALLOWED_HOSTS:", ALLOWED_HOSTS)
 
 # --------------------------
-# HTTPS / PROXY FIX (VERY IMPORTANT)
+# HTTPS / PROXY FIX
 # --------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
@@ -103,6 +103,8 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "shop.context_processors.cart_items_count",
+                "shop.context_processors.site_settings",
+                "shop.context_processors.facebook_pixel",   # FB Pixel context
             ],
         },
     },
@@ -125,7 +127,6 @@ if IS_PRODUCTION:
         }
     }
 else:
-    # Local development → SQLite recommended
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -159,6 +160,33 @@ SSLCOMMERZ_STORE_ID = os.getenv("SSLCOMMERZ_STORE_ID", "")
 SSLCOMMERZ_STORE_PASSWORD = os.getenv("SSLCOMMERZ_STORE_PASSWORD", "")
 SSLCOMMERZ_PAYMENT_URL = os.getenv("SSLCOMMERZ_PAYMENT_URL", "")
 SSLCOMMERZ_VALIDATION_URL = os.getenv("SSLCOMMERZ_VALIDATION_URL", "")
+
+# --------------------------
+# STEADFAST COURIER
+# --------------------------
+# এখানে তুমি যেভাবে রেখে ছিলে, সেভাবেই রাখলাম
+if IS_PRODUCTION:
+    # production এ চাইলে env থেকে নাও (এখন key নাম হিসেবে আগের string-ই আছে)
+    STEADFAST_API_KEY = os.getenv("3k5v35is1nmksdywmdgwgkmweya6b1zr", "")
+    STEADFAST_SECRET_KEY = os.getenv("isptxoqld14x3jtf3rzrvip8", "")
+else:
+    # local/dev এর জন্য সরাসরি string
+    STEADFAST_API_KEY = "3k5v35is1nmksdywmdgwgkmweya6b1zr"
+    STEADFAST_SECRET_KEY = "isptxoqld14x3jtf3rzrvip8"
+
+STEADFAST_BASE_URL = os.getenv(
+    "STEADFAST_BASE_URL",
+    "https://portal.packzy.com/api/v1",
+)
+
+# --------------------------
+# FACEBOOK PIXEL / CAPI
+# --------------------------
+# তোমার Facebook Dataset / Pixel ID
+FACEBOOK_PIXEL_ID = "1769049247131500"
+
+# Conversions API er Access Token
+FACEBOOK_CAPI_ACCESS_TOKEN = "EAARogZCQ2xV8BQGvEfSfv4FA71r6WZC8iZAExSZA1cmlQ2DNxRRxRJEjfeVUScD8tu5ZBzpAp4NsHQolzK9X6P5FemS5OpoLAOIyJbahuLPT5fvrsxvkWZAEJ7oUoNH8AnqXN9Qs44NrxI203w4ktVELeXF4EiRW8xSzWoZACNVL2nPjIDYHAG2AHiK7SkuhBWxZBwZDZD"
 
 # --------------------------
 # EMAIL SETTINGS

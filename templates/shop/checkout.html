@@ -99,8 +99,14 @@
 
         <div class="flex-1">
           <h4 class="font-semibold text-gray-800">{{ item.product.name }}</h4>
+
+          {# Variant থাকলে নিচে দেখাবো (যেমন: 500gm, Red, XL ইত্যাদি) #}
+          {% if item.variant %}
+            <p class="text-xs text-gray-500">{{ item.variant }}</p>
+          {% endif %}
+
           <p class="text-gray-500 text-sm">
-            {{ item.quantity }} × ৳{{ item.product.price }}
+            {{ item.quantity }} × ৳{{ item.get_unit_price }}
           </p>
         </div>
 
@@ -133,4 +139,22 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% if FACEBOOK_PIXEL_ID %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof fbq === 'undefined') {
+      return;
+    }
+    // InitiateCheckout event
+    fbq('track', 'InitiateCheckout', {
+      value: {{ total_preview|default:"0"|floatformat:2 }},
+      currency: 'BDT'
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

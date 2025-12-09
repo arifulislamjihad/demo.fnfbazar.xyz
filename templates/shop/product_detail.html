@@ -23,7 +23,7 @@
     <!-- Product Image -->
     <div class="relative group">
         {% if product.image %}
-            <img src="{{ product.image.url }}" 
+            <img src="{{ product.image.url }}"
                  class="w-full rounded-xl shadow-md object-cover transition-transform duration-300 group-hover:scale-105 cursor-zoom-in">
         {% else %}
             <div class="w-full h-80 bg-gray-200 flex items-center justify-center rounded-xl">
@@ -54,23 +54,20 @@
         </div>
 
         <!-- Price -->
-        <div class="text-4xl font-extrabold text-purple-600 mb-4">
-            ৳{{ product.price }}
+        <div class="text-4xl font-extrabold text-purple-600 mb-2">
+            <span id="product-price">৳{{ product.price }}</span>
         </div>
 
-        <!-- Short Description -->
-        <p class="text-gray-600 text-lg leading-relaxed mb-6">
-            {{ product.description }}
-        </p>
-
         <!-- Stock & Category Badges -->
-        <div class="flex flex-wrap gap-3 mb-6">
+        <div class="flex flex-wrap gap-3 mb-4">
             {% if product.stock > 0 %}
-                <span class="bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow">
+                <span id="product-stock-label"
+                      class="bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow">
                     In Stock ({{ product.stock }})
                 </span>
             {% else %}
-                <span class="bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow">
+                <span id="product-stock-label"
+                      class="bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow">
                     Out of Stock
                 </span>
             {% endif %}
@@ -80,6 +77,36 @@
             </span>
         </div>
 
+        <!-- Short Description -->
+        <p class="text-gray-600 text-lg leading-relaxed mb-6">
+            {{ product.description }}
+        </p>
+
+        <!-- Variant selectors (if any) -->
+        {% if product.has_variants %}
+            <div class="mb-6 space-y-4">
+                {% for attr_id, data in variant_attributes.items %}
+                    <div>
+                        <label class="block font-semibold text-gray-800 mb-1">
+                            {{ data.attribute.name }}
+                        </label>
+                        <select
+                            class="variant-attribute-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-300 outline-none"
+                            data-attribute-id="{{ data.attribute.id }}"
+                        >
+                            <option value="">Select {{ data.attribute.name }}</option>
+                            {% for val in data.values %}
+                                <option value="{{ val.id }}">{{ val.value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                {% endfor %}
+                <p id="variant-message" class="text-sm text-orange-600">
+                    Please select all options before adding to cart.
+                </p>
+            </div>
+        {% endif %}
+
         <!-- Action Buttons -->
         {% if product.stock > 0 %}
         <div class="flex flex-col sm:flex-row gap-4 mt-6">
@@ -87,8 +114,16 @@
             <!-- Add to Cart -->
             <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-full sm:w-1/2">
                 {% csrf_token %}
+                {% if product.has_variants %}
+                    <input type="hidden" name="variant_id" id="variant-id-input">
+                {% endif %}
                 <button type="submit"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition">
+                        id="add-to-cart-main"
+                        data-product-id="{{ product.id }}"
+                        data-product-name="{{ product.name|escapejs }}"
+                        data-product-price="{{ product.price|floatformat:2 }}"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition
+                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}">
                     <i class="fas fa-shopping-cart mr-2"></i> Add to Cart
                 </button>
             </form>
@@ -204,6 +239,140 @@
         {% endfor %}
     </div>
 </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+
+{% if FACEBOOK_PIXEL_ID %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        if (typeof fbq === 'undefined') {
+            return;
+        }
+
+        // ViewContent event
+        fbq('track', 'ViewContent', {
+            content_ids: ['{{ product.id }}'],
+            content_name: '{{ product.name|escapejs }}',
+            content_type: 'product',
+            value: {{ product.price|floatformat:2 }},
+            currency: 'BDT'
+        });
+
+        // AddToCart event (base price / selected variant)
+        const btn = document.getElementById('add-to-cart-main');
+        if (btn) {
+            btn.addEventListener('click', function () {
+                fbq('track', 'AddToCart', {
+                    content_ids: [this.dataset.productId],
+                    content_name: this.dataset.productName,
+                    content_type: 'product',
+                    value: parseFloat(this.dataset.productPrice),
+                    currency: 'BDT'
+                });
+            });
+        }
+    });
+</script>
+{% endif %}
+
+{% if product.has_variants %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const variantMap = {{ variant_map_json|default:"{}"|safe }};
+        const selects = document.querySelectorAll(".variant-attribute-select");
+        const hiddenInput = document.getElementById("variant-id-input");
+        const addBtn = document.getElementById("add-to-cart-main");
+        const priceEl = document.getElementById("product-price");
+        const stockLabel = document.getElementById("product-stock-label");
+        const messageEl = document.getElementById("variant-message");
+
+        function setButtonEnabled(enabled) {
+            if (!addBtn) return;
+            if (enabled) {
+                addBtn.classList.remove("opacity-60", "cursor-not-allowed");
+                addBtn.disabled = false;
+            } else {
+                addBtn.classList.add("opacity-60", "cursor-not-allowed");
+                addBtn.disabled = true;
+            }
+        }
+
+        function updateVariant() {
+            if (!selects.length) {
+                setButtonEnabled(true);
+                return;
+            }
+
+            const parts = [];
+            selects.forEach(function (sel) {
+                const attrId = sel.dataset.attributeId;
+                const valId = sel.value;
+                if (valId) {
+                    parts.push(attrId + ":" + valId);
+                }
+            });
+
+            if (parts.length !== selects.length) {
+                if (messageEl) {
+                    messageEl.textContent = "Please select all options before adding to cart.";
+                    messageEl.classList.remove("text-green-600", "text-red-600");
+                    messageEl.classList.add("text-orange-600");
+                }
+                hiddenInput && (hiddenInput.value = "");
+                setButtonEnabled(false);
+                priceEl && (priceEl.textContent = "৳{{ product.price }}");
+                return;
+            }
+
+            parts.sort();
+            const key = parts.join("|");
+            const variant = variantMap[key];
+
+            if (!variant || variant.stock <= 0) {
+                if (messageEl) {
+                    messageEl.textContent = "This combination is out of stock.";
+                    messageEl.classList.remove("text-green-600", "text-orange-600");
+                    messageEl.classList.add("text-red-600");
+                }
+                hiddenInput && (hiddenInput.value = "");
+                setButtonEnabled(false);
+                if (stockLabel) {
+                    stockLabel.textContent = "Out of Stock";
+                    stockLabel.classList.remove("bg-green-500");
+                    stockLabel.classList.add("bg-red-500");
+                }
+                return;
+            }
+
+            hiddenInput && (hiddenInput.value = variant.id);
+            setButtonEnabled(true);
+
+            if (messageEl) {
+                messageEl.textContent = "Ready to add to cart.";
+                messageEl.classList.remove("text-orange-600", "text-red-600");
+                messageEl.classList.add("text-green-600");
+            }
+            if (priceEl) {
+                priceEl.textContent = "৳" + variant.price.toFixed(2);
+            }
+            if (stockLabel) {
+                stockLabel.textContent = "In Stock (" + variant.stock + ")";
+                stockLabel.classList.remove("bg-red-500");
+                stockLabel.classList.add("bg-green-500");
+            }
+        }
+
+        selects.forEach(function (sel) {
+            sel.addEventListener("change", updateVariant);
+        });
+
+        setButtonEnabled(false);
+    });
+</script>
 {% endif %}
 
 {% endblock %}
