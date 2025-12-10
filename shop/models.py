@@ -30,6 +30,7 @@ class Product(models.Model):
         related_name="products",
     )
     description = models.TextField()
+    # main/base price (variant থাকলে ওটা override করবে)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveBigIntegerField(default=1)
     available = models.BooleanField(default=True)
@@ -46,6 +47,7 @@ class Product(models.Model):
             return sum(r.rating for r in ratings) / ratings.count()
         return 0
 
+    @property
     def has_variants(self):
         """Template থেকে সহজে চেক করার জন্য।"""
         return self.variants.exists()
@@ -93,7 +95,8 @@ class Attribute(models.Model):
         (WEIGHT, "Weight"),
     )
 
-    name = models.CharField(max_length=100)      # e.g. Weight, Size, Color
+    # e.g. Weight, Size, Color
+    name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True)
     type = models.CharField(
         max_length=20,
@@ -116,7 +119,8 @@ class AttributeValue(models.Model):
         on_delete=models.CASCADE,
         related_name="values",
     )
-    value = models.CharField(max_length=100)     # e.g. 500gm, 1kg, Red, XL
+    # e.g. 500gm, 1kg, Red, XL
+    value = models.CharField(max_length=100)
     color_code = models.CharField(
         max_length=7,
         blank=True,
@@ -176,6 +180,7 @@ class ProductVariant(models.Model):
         return f"{self.product.name} ({attrs})" if attrs else self.product.name
 
     def get_price(self):
+        """Variant এর নিজস্ব price থাকলে সেটা, না থাকলে product.price."""
         return self.price if self.price is not None else self.product.price
 
 
@@ -208,7 +213,7 @@ class CartItem(models.Model):
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
-    # NEW: কোন variant (optional)
+    # কোন variant (optional)
     variant = models.ForeignKey(
         ProductVariant,
         on_delete=models.SET_NULL,
@@ -340,7 +345,7 @@ class OrderItem(models.Model):
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
-    # NEW: variant info (optional)
+    # কোন variant ছিল (optional)
     variant = models.ForeignKey(
         ProductVariant,
         on_delete=models.SET_NULL,
@@ -350,6 +355,7 @@ class OrderItem(models.Model):
     )
 
     quantity = models.PositiveIntegerField(default=1)
+    # snapshot of unit price
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):

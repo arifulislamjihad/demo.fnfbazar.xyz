@@ -5,7 +5,6 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
-        # login_required নিচে কিছু জায়গায় ব্যবহার হয়েছে
 from django.contrib.auth.decorators import login_required
 
 from .models import (
@@ -270,7 +269,9 @@ def cart_remove(request, product_id):
         CartItem.objects.filter(cart=cart, product_id=product_id).delete()
     else:
         cart = request.session.get("guest_cart", {})
-        keys_to_remove = [k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)]
+        keys_to_remove = [
+            k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)
+        ]
         for k in keys_to_remove:
             cart.pop(k, None)
         request.session["guest_cart"] = cart
@@ -291,7 +292,9 @@ def cart_update(request, product_id):
             item.save()
     else:
         cart = request.session.get("guest_cart", {})
-        matching_keys = [k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)]
+        matching_keys = [
+            k for k in list(cart.keys()) if k.split(":")[0] == str(product_id)
+        ]
         if qty <= 0:
             for k in matching_keys:
                 cart.pop(k, None)
@@ -311,34 +314,52 @@ def cart_update(request, product_id):
 # ============================================================
 @csrf_exempt
 def checkout(request):
-    # BUY NOW support (?buy_now_id=)
+    # BUY NOW support (?buy_now_id=&variant_id=)
     buy_now_id = request.GET.get("buy_now_id")
+    buy_now_variant_id = request.GET.get("variant_id")
+
     if buy_now_id:
         request.session["buy_now_id"] = str(buy_now_id)
+        if buy_now_variant_id:
+            request.session["buy_now_variant_id"] = str(buy_now_variant_id)
 
     buy_now_id = request.session.get("buy_now_id")
+    buy_now_variant_id = request.session.get("buy_now_variant_id")
     product_for_buy_now = None
+    variant_for_buy_now = None
 
     # --------- determine cart ----------
     if buy_now_id:
-        product_for_buy_now = get_object_or_404(Product, id=buy_now_id)
+        product_for_buy_now = get_object_or_404(Product, id=buy_now_id, available=True)
+
+        if buy_now_variant_id:
+            try:
+                variant_for_buy_now = ProductVariant.objects.get(
+                    id=buy_now_variant_id,
+                    product=product_for_buy_now,
+                    is_active=True,
+                )
+            except ProductVariant.DoesNotExist:
+                variant_for_buy_now = None
 
         class BuyNowItem:
-            def __init__(self, product):
+            def __init__(self, product, variant=None):
                 self.product = product
-                self.variant = None
+                self.variant = variant
                 self.quantity = 1
 
             def get_unit_price(self):
+                if self.variant:
+                    return self.variant.get_price()
                 return self.product.price
 
             @property
             def get_cost(self):
-                return self.get_unit_price()
+                return self.get_unit_price() * self.quantity
 
         class BuyNowCart:
-            def __init__(self, product):
-                self.items = [BuyNowItem(product)]
+            def __init__(self, product, variant=None):
+                self.items = [BuyNowItem(product, variant)]
 
             def get_total_price(self):
                 return self.items[0].get_cost
@@ -346,7 +367,7 @@ def checkout(request):
             def get_total_items(self):
                 return 1
 
-        cart = BuyNowCart(product_for_buy_now)
+        cart = BuyNowCart(product_for_buy_now, variant_for_buy_now)
         is_buy_now = True
     else:
         cart = _get_cart(request)
@@ -381,14 +402,20 @@ def checkout(request):
 
             # order items
             if is_buy_now:
+                if variant_for_buy_now:
+                    unit_price = variant_for_buy_now.get_price()
+                else:
+                    unit_price = product_for_buy_now.price
+
                 OrderItem.objects.create(
                     order=order,
                     product=product_for_buy_now,
-                    variant=None,
+                    variant=variant_for_buy_now,
                     quantity=1,
-                    price=product_for_buy_now.price,
+                    price=unit_price,
                 )
                 request.session.pop("buy_now_id", None)
+                request.session.pop("buy_now_variant_id", None)
             else:
                 for item in cart.items:
                     unit_price = (

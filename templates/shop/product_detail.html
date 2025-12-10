@@ -123,7 +123,8 @@
                         data-product-name="{{ product.name|escapejs }}"
                         data-product-price="{{ product.price|floatformat:2 }}"
                         class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition
-                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}">
+                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}"
+                        {% if product.has_variants %}disabled{% endif %}>
                     <i class="fas fa-shopping-cart mr-2"></i> Add to Cart
                 </button>
             </form>
@@ -131,8 +132,14 @@
             <!-- Buy Now (Direct Checkout) -->
             <form action="{% url 'shop:checkout' %}" method="get" class="w-full sm:w-1/2">
                 <input type="hidden" name="buy_now_id" value="{{ product.id }}">
+                {% if product.has_variants %}
+                    <input type="hidden" name="variant_id" id="buy-now-variant-id">
+                {% endif %}
                 <button type="submit"
-                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition">
+                        id="buy-now-btn"
+                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition
+                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}"
+                        {% if product.has_variants %}disabled{% endif %}>
                     <i class="fas fa-bolt mr-2"></i> Buy Now
                 </button>
             </form>
@@ -262,7 +269,7 @@
             currency: 'BDT'
         });
 
-        // AddToCart event (base price / selected variant)
+        // AddToCart event (value পরে JS এ variant অনুযায়ী আপডেট হবে)
         const btn = document.getElementById('add-to-cart-main');
         if (btn) {
             btn.addEventListener('click', function () {
@@ -289,6 +296,8 @@
         const priceEl = document.getElementById("product-price");
         const stockLabel = document.getElementById("product-stock-label");
         const messageEl = document.getElementById("variant-message");
+        const buyNowBtn = document.getElementById("buy-now-btn");
+        const buyNowVariantInput = document.getElementById("buy-now-variant-id");
 
         function setButtonEnabled(enabled) {
             if (!addBtn) return;
@@ -301,9 +310,21 @@
             }
         }
 
+        function setBuyNowEnabled(enabled) {
+            if (!buyNowBtn) return;
+            if (enabled) {
+                buyNowBtn.classList.remove("opacity-60", "cursor-not-allowed");
+                buyNowBtn.disabled = false;
+            } else {
+                buyNowBtn.classList.add("opacity-60", "cursor-not-allowed");
+                buyNowBtn.disabled = true;
+            }
+        }
+
         function updateVariant() {
             if (!selects.length) {
                 setButtonEnabled(true);
+                setBuyNowEnabled(true);
                 return;
             }
 
@@ -322,9 +343,11 @@
                     messageEl.classList.remove("text-green-600", "text-red-600");
                     messageEl.classList.add("text-orange-600");
                 }
-                hiddenInput && (hiddenInput.value = "");
+                if (hiddenInput) hiddenInput.value = "";
+                if (buyNowVariantInput) buyNowVariantInput.value = "";
                 setButtonEnabled(false);
-                priceEl && (priceEl.textContent = "৳{{ product.price }}");
+                setBuyNowEnabled(false);
+                if (priceEl) priceEl.textContent = "৳{{ product.price }}";
                 return;
             }
 
@@ -338,8 +361,10 @@
                     messageEl.classList.remove("text-green-600", "text-orange-600");
                     messageEl.classList.add("text-red-600");
                 }
-                hiddenInput && (hiddenInput.value = "");
+                if (hiddenInput) hiddenInput.value = "";
+                if (buyNowVariantInput) buyNowVariantInput.value = "";
                 setButtonEnabled(false);
+                setBuyNowEnabled(false);
                 if (stockLabel) {
                     stockLabel.textContent = "Out of Stock";
                     stockLabel.classList.remove("bg-green-500");
@@ -348,8 +373,10 @@
                 return;
             }
 
-            hiddenInput && (hiddenInput.value = variant.id);
+            if (hiddenInput) hiddenInput.value = variant.id;
+            if (buyNowVariantInput) buyNowVariantInput.value = variant.id;
             setButtonEnabled(true);
+            setBuyNowEnabled(true);
 
             if (messageEl) {
                 messageEl.textContent = "Ready to add to cart.";
@@ -364,13 +391,19 @@
                 stockLabel.classList.remove("bg-red-500");
                 stockLabel.classList.add("bg-green-500");
             }
+            // Pixel এর জন্য current price dataset এ রাখি
+            if (addBtn) {
+                addBtn.dataset.productPrice = variant.price.toFixed(2);
+            }
         }
 
         selects.forEach(function (sel) {
             sel.addEventListener("change", updateVariant);
         });
 
+        // initial state
         setButtonEnabled(false);
+        setBuyNowEnabled(false);
     });
 </script>
 {% endif %}
