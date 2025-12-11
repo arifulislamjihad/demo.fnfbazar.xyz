@@ -24,19 +24,15 @@ DEBUG = not IS_PRODUCTION
 # --------------------------
 # ALLOWED HOSTS
 # --------------------------
-# .env থেকে আসবে, multi-domain ready
 raw_hosts = os.getenv("ALLOWED_HOSTS", "")
 env_hosts = [h.strip() for h in raw_hosts.split(",") if h.strip()]
 
-# Docker / local default hosts
 DOCKER_HOSTS = [
-    "fnfbazar_django",   # প্রথম সাইটের container নাম
-    "aboroni_django",    # ভবিষ্যতে ২য় সাইটের container ( চাইলে বদলাতে পারো )
+    "fnfbazar_django",
     "localhost",
     "127.0.0.1",
 ]
 
-# env + docker hosts merge
 ALLOWED_HOSTS = list(set(env_hosts + DOCKER_HOSTS))
 
 print("🔵 ENV:", DJANGO_ENV)
@@ -49,13 +45,10 @@ print("🔵 ALLOWED_HOSTS:", ALLOWED_HOSTS)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
-# CSRF_TRUSTED_ORIGINS এখন .env থেকে কনফিগ হবে,
-# যেন আলাদা সাইটের জন্য আলাদা origin সেট করতে পারো
-raw_csrf = os.getenv("CSRF_TRUSTED_ORIGINS", "")
-if raw_csrf:
-    CSRF_TRUSTED_ORIGINS = [o.strip() for o in raw_csrf.split(",") if o.strip()]
-else:
-    CSRF_TRUSTED_ORIGINS = []
+CSRF_TRUSTED_ORIGINS = [
+    "https://shop.fnfbazar.xyz",
+    "https://www.shop.fnfbazar.xyz",
+]
 
 # --------------------------
 # INSTALLED APPS
@@ -123,7 +116,6 @@ WSGI_APPLICATION = "e_shop.wsgi.application"
 # DATABASE
 # --------------------------
 if IS_PRODUCTION:
-    # Live server (Postgres) – সবকিছু .env থেকে
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -135,7 +127,6 @@ if IS_PRODUCTION:
         }
     }
 else:
-    # Local development – sqlite (easy)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -173,13 +164,13 @@ SSLCOMMERZ_VALIDATION_URL = os.getenv("SSLCOMMERZ_VALIDATION_URL", "")
 # --------------------------
 # STEADFAST COURIER
 # --------------------------
-# তুমি যেমন করে রেখেছিলে, ঠিক তেমনই রেখে দিলাম
+# এখানে তুমি যেভাবে রেখে ছিলে, সেভাবেই রাখলাম
 if IS_PRODUCTION:
-    # production এ env থেকে নেবে (key name আগের মত)
+    # production এ চাইলে env থেকে নাও (এখন key নাম হিসেবে আগের string-ই আছে)
     STEADFAST_API_KEY = os.getenv("3k5v35is1nmksdywmdgwgkmweya6b1zr", "")
     STEADFAST_SECRET_KEY = os.getenv("isptxoqld14x3jtf3rzrvip8", "")
 else:
-    # local/dev এর জন্য সরাসরি value
+    # local/dev এর জন্য সরাসরি string
     STEADFAST_API_KEY = "3k5v35is1nmksdywmdgwgkmweya6b1zr"
     STEADFAST_SECRET_KEY = "isptxoqld14x3jtf3rzrvip8"
 
@@ -191,11 +182,11 @@ STEADFAST_BASE_URL = os.getenv(
 # --------------------------
 # FACEBOOK PIXEL / CAPI
 # --------------------------
+# তোমার Facebook Dataset / Pixel ID
 FACEBOOK_PIXEL_ID = "1769049247131500"
 
-FACEBOOK_CAPI_ACCESS_TOKEN = (
-    "EAARogZCQ2xV8BQGvEfSfv4FA71r6WZC8iZAExSZA1cmlQ2DNxRRxRJEjfeVUScD8tu5ZBzpAp4NsHQolzK9X6P5FemS5OpoLAOIyJbahuLPT5fvrsxvkWZAEJ7oUoNH8AnqXN9Qs44NrxI203w4ktVELeXF4EiRW8xSzWoZACNVL2nPjIDYHAG2AHiK7SkuhBWxZBwZDZD"
-)
+# Conversions API er Access Token
+FACEBOOK_CAPI_ACCESS_TOKEN = "EAARogZCQ2xV8BQGvEfSfv4FA71r6WZC8iZAExSZA1cmlQ2DNxRRxRJEjfeVUScD8tu5ZBzpAp4NsHQolzK9X6P5FemS5OpoLAOIyJbahuLPT5fvrsxvkWZAEJ7oUoNH8AnqXN9Qs44NrxI203w4ktVELeXF4EiRW8xSzWoZACNVL2nPjIDYHAG2AHiK7SkuhBWxZBwZDZD"
 
 # --------------------------
 # EMAIL SETTINGS
