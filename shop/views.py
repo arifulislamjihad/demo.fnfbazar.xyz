@@ -102,13 +102,14 @@ def product_list(request, category_slug=None):
 
 
 # ============================================================
-# PRODUCT DETAIL (with variants)
+# PRODUCT DETAIL (FIXED LOGIC FOR ATTRIBUTES)
 # ============================================================
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
+    
     related_products = Product.objects.filter(
         category=product.category, available=True
-    ).exclude(id=product.id)
+    ).exclude(id=product.id)[:4]
 
     # User rating
     user_rating = None
@@ -120,59 +121,75 @@ def product_detail(request, slug):
 
     rating_form = RatingForm(instance=user_rating)
 
-    # Variants data (if any)
-    variants = (
-        product.variants.filter(is_active=True)
-        .prefetch_related("attribute_values__attribute")
-    )
+    # ---------------------------------------------------------
+    # VARIANT ATTRIBUTE LOGIC
+    # ---------------------------------------------------------
+    
+    # ১. সব অ্যাক্টিভ ভেরিয়েন্ট বের করি এবং তাদের অ্যাট্রিবিউটগুলো লোড করি
+    variants = product.variants.filter(is_active=True).prefetch_related('attribute_values__attribute')
 
-    # attribute map: {attr_id: {"attribute": attr, "values": [AttributeValue,...]}}
-    attribute_map = {}
-    for v in variants:
-        for av in v.attribute_values.all():
-            attr = av.attribute
-            if attr.id not in attribute_map:
-                attribute_map[attr.id] = {"attribute": attr, "values": []}
-            if av not in attribute_map[attr.id]["values"]:
-                attribute_map[attr.id]["values"].append(av)
-
-    # variant combination map for JS
-    # key = "attrId:valId|attrId:valId"
+    # Frontend-এ দেখানোর জন্য ডিকশনারি
+    # Structure: { attr_id: { 'attribute': AttributeObj, 'values': [ValueObj, ValueObj] } }
+    variant_attributes = {}
+    
+    # JavaScript এর জন্য ম্যাপিং (Price/Stock update করার জন্য)
     variant_map = {}
-    for v in variants:
-        parts = [f"{av.attribute_id}:{av.id}" for av in v.attribute_values.all()]
-        parts.sort()
-        key = "|".join(parts)
-        variant_map[key] = {
-            "id": v.id,
-            "price": float(v.get_price()),
-            "stock": v.stock,
-        }
 
-    return render(
-        request,
-        "shop/product_detail.html",
-        {
-            "product": product,
-            "related_products": related_products,
-            "user_rating": user_rating,
-            "rating_form": rating_form,
-            "variant_attributes": attribute_map,
-            "variant_map_json": json.dumps(variant_map),
-        },
-    )
+    if product.has_variants:
+        for variant in variants:
+            # JS Map এর জন্য Key তৈরি (যেমন: "color_id:red_id|size_id:xl_id")
+            temp_key = []
+            
+            # এই ভেরিয়েন্টের সব অ্যাট্রিবিউট ভ্যালু চেক করি
+            for val in variant.attribute_values.all():
+                attr = val.attribute
+                
+                # --- Template Data সাজানো ---
+                if attr.id not in variant_attributes:
+                    variant_attributes[attr.id] = {
+                        'attribute': attr,
+                        'values': []
+                    }
+                
+                # ডুপ্লিকেট ভ্যালু আটকাতে চেক করি (যেমন Red দুইবার না আসে)
+                existing_ids = [v.id for v in variant_attributes[attr.id]['values']]
+                if val.id not in existing_ids:
+                    variant_attributes[attr.id]['values'].append(val)
+                
+                # --- JS Key তৈরি ---
+                temp_key.append(f"{attr.id}:{val.id}")
+
+            # Key গুলো sort করি যাতে উল্টাপাল্টা না হয়
+            temp_key.sort()
+            final_key = "|".join(temp_key)
+
+            # JS Map এ তথ্য রাখি
+            variant_map[final_key] = {
+                'id': variant.id,
+                'price': float(variant.get_price()),
+                'stock': variant.stock
+            }
+
+    context = {
+        "product": product,
+        "related_products": related_products,
+        "user_rating": user_rating,
+        "rating_form": rating_form,
+        "variant_attributes": variant_attributes, # এই variable টি টেম্পলেটে লুপ হবে
+        "variant_map_json": json.dumps(variant_map),
+    }
+
+    return render(request, "shop/product_detail.html", context)
 
 
 # ============================================================
-# CART SYSTEM (supports guest)
+# CART SYSTEM
 # ============================================================
 def _get_cart(request):
-    # logged-in user cart
     if request.user.is_authenticated:
         cart, _ = Cart.objects.get_or_create(user=request.user)
         return cart
 
-    # guest cart from session
     cart_data = request.session.get("guest_cart", {})
 
     class GuestItem:
@@ -310,11 +327,10 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (Name + Phone + Address + Delivery + Buy Now)
+# CHECKOUT
 # ============================================================
 @csrf_exempt
 def checkout(request):
-    # BUY NOW support (?buy_now_id=&variant_id=)
     buy_now_id = request.GET.get("buy_now_id")
     buy_now_variant_id = request.GET.get("variant_id")
 
@@ -328,7 +344,6 @@ def checkout(request):
     product_for_buy_now = None
     variant_for_buy_now = None
 
-    # --------- determine cart ----------
     if buy_now_id:
         product_for_buy_now = get_object_or_404(Product, id=buy_now_id, available=True)
 
@@ -377,19 +392,16 @@ def checkout(request):
             messages.warning(request, "Your cart is empty.")
             return redirect("shop:cart_detail")
 
-    # Preview totals (default Dhaka charge)
     subtotal = cart.get_total_price()
     delivery_preview = 70
     total_preview = subtotal + delivery_preview
 
-    # --------- POST / GET ----------
     if request.method == "POST":
         form = CheckoutForm(request.POST)
 
         if form.is_valid():
             order = form.save(commit=False)
 
-            # delivery charge set here
             if order.delivery_area == "dhaka":
                 order.delivery_charge = 70
             else:
@@ -400,7 +412,6 @@ def checkout(request):
 
             order.save()
 
-            # order items
             if is_buy_now:
                 if variant_for_buy_now:
                     unit_price = variant_for_buy_now.get_price()
@@ -431,13 +442,11 @@ def checkout(request):
                         price=unit_price,
                     )
 
-                # clear cart
                 if request.user.is_authenticated:
                     CartItem.objects.filter(cart__user=request.user).delete()
                 else:
                     request.session["guest_cart"] = {}
 
-            # COD → success page, SSL → redirect to gateway
             if order.payment_method == "cod":
                 return render(request, "shop/payment_success.html", {"order": order})
 

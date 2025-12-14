@@ -29,15 +29,25 @@ class CategoryAdmin(admin.ModelAdmin):
 
 
 # ===============================
-# PRODUCT VARIANTS (inline)
+# PRODUCT VARIANTS (CLIENT FRIENDLY VERSION)
 # ===============================
-class ProductVariantInline(admin.StackedInline):
+class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
-    extra = 1
-    fields = ("name", "sku", "price", "stock", "is_active", "attribute_values")
+    # extra = 0 মানে হলো বাই ডিফল্ট কোনো খালি রো দেখাবে না, 
+    # ক্লায়েন্ট "Add another" এ ক্লিক করে নতুন ভেরিয়েন্ট যোগ করবে। এতে হিজিবিজি কম হবে।
+    extra = 0
+    
+    # এখানে আমরা filter_horizontal বাদ দিয়েছি।
+    # ক্লায়েন্ট এখন শুধু টিক (Checkbox) দেবে।
+    fields = ("attribute_values", "price", "stock", "sku", "is_active")
+    
+    # চেকবক্স উইজেট ব্যবহার করার জন্য:
     formfield_overrides = {
-        models.ManyToManyField: {"widget": CheckboxSelectMultiple},
+        models.ManyToManyField: {'widget': CheckboxSelectMultiple},
     }
+    
+    # CSS দিয়ে চেকবক্সগুলো সুন্দর করে সাজানো (এক লাইনে না এসে নিচে নিচে আসবে)
+    classes = ['collapse'] # প্রথমে বন্ধ থাকবে, ক্লিক করলে খুলবে (জায়গা বাঁচানোর জন্য)
 
 
 # ===============================
@@ -50,6 +60,9 @@ class ProductAdmin(admin.ModelAdmin):
     list_editable = ("price", "stock", "available")
     prepopulated_fields = {"slug": ("name",)}
     inlines = [ProductVariantInline]
+    
+    # পেজ লোড হওয়ার সময় 'Save' বাটন যেন উপরেও থাকে
+    save_on_top = True
 
 
 # ===============================
@@ -76,6 +89,9 @@ class AttributeValueAdmin(admin.ModelAdmin):
     list_display = ("attribute", "value", "color_code")
     list_filter = ("attribute",)
     search_fields = ("value", "attribute__name")
+    
+    # ক্লায়েন্ট যখন ভেরিয়েন্ট বানাবে, তখন ড্রপডাউনে নামগুলো যেন সুন্দর দেখায়
+    ordering = ('attribute', 'value')
 
 
 # ===============================
@@ -149,16 +165,16 @@ class OrderAdmin(admin.ModelAdmin):
                 fail_count += 1
                 messages.error(
                     request,
-                    f"Order #{order.id} → Steadfast এ পাঠানো যায়নি: {info}",
+                    f"Order #{order.id} → Steadfast এ পাঠানো যায়নি: {info}",
                 )
 
         if success_count:
             messages.success(
                 request,
-                f"{success_count}টি order সফলভাবে Steadfast-এ পাঠানো হয়েছে।",
+                f"{success_count}টি order সফলভাবে Steadfast-এ পাঠানো হয়েছে।",
             )
         if not success_count and not fail_count:
-            messages.info(request, "কোনো order নির্বাচন করা হয়নি।")
+            messages.info(request, "কোনো order নির্বাচন করা হয়নি।")
 
     @admin.action(description="Update Steadfast delivery status")
     def update_steadfast_status_action(self, request, queryset):
@@ -170,12 +186,12 @@ class OrderAdmin(admin.ModelAdmin):
             else:
                 messages.warning(
                     request,
-                    f"Order #{order.id} → Steadfast status আপডেট হয়নি: {info}",
+                    f"Order #{order.id} → Steadfast status আপডেট হয়নি: {info}",
                 )
         if updated:
             messages.success(
                 request,
-                f"{updated}টি order-এর Steadfast status রিফ্রেশ করা হয়েছে।",
+                f"{updated}টি order-এর Steadfast status রিফ্রেশ করা হয়েছে।",
             )
 
 
@@ -192,10 +208,6 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     list_display = ("site_name", "logo_preview")
 
     def has_add_permission(self, request):
-        """
-        Normally শুধু ১টা SiteSettings object থাকবে।
-        আগে যদি থাকে, নতুন আরেকটা add করতে দেবে না।
-        """
         if SiteSettings.objects.exists():
             return False
         return super().has_add_permission(request)

@@ -4,7 +4,81 @@
 
 {% block content %}
 
-<!-- Breadcrumb -->
+<style>
+    /* Radio Input লুকানো */
+    .variant-input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
+    }
+
+    /* TEXT/SIZE BOX ডিজাইন (Unselected) */
+    .variant-box {
+        display: inline-block;
+        padding: 8px 16px;
+        border: 2px solid #e5e7eb; /* Gray border */
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        min-width: 60px;
+        text-align: center;
+    }
+
+    /* TEXT/SIZE BOX ডিজাইন (SELECTED) - যখন টিক দেওয়া হবে */
+    .variant-input:checked + .variant-box {
+        border-color: #9333ea; /* Purple Border */
+        background-color: #f3e8ff; /* Light Purple Background */
+        color: #9333ea; /* Purple Text */
+        box-shadow: 0 0 0 1px #9333ea;
+    }
+
+    /* COLOR CIRCLE ডিজাইন (Unselected) */
+    .variant-color {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px; /* সাইজ বড় করা হয়েছে */
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid #e5e7eb;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    /* COLOR CIRCLE ডিজাইন (SELECTED) */
+    .variant-input:checked + .variant-color {
+        border: 2px solid white; /* সাদার বর্ডার */
+        box-shadow: 0 0 0 3px #9333ea; /* তার বাইরে বেগুনি রিং */
+        transform: scale(1.1);
+    }
+    
+    /* টিক চিহ্ন (Icon) */
+    .check-icon {
+        display: none;
+        color: white;
+        font-size: 14px;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+    }
+    
+    .variant-input:checked + .variant-color .check-icon {
+        display: block;
+    }
+
+    /* Disabled button style */
+    .btn-disabled {
+        opacity: 0.5;
+        cursor: not-allowed !important;
+        background-color: #9ca3af !important;
+        border-color: #9ca3af !important;
+    }
+</style>
+
 <nav class="text-sm mb-6">
     <ol class="flex flex-wrap gap-2 text-gray-500">
         <li><a href="{% url 'shop:home' %}" class="text-purple-600 hover:underline">Home</a></li>
@@ -17,10 +91,8 @@
     </ol>
 </nav>
 
-<!-- Product Section -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
 
-    <!-- Product Image -->
     <div class="relative group">
         {% if product.image %}
             <img src="{{ product.image.url }}"
@@ -32,12 +104,10 @@
         {% endif %}
     </div>
 
-    <!-- Product Info -->
     <div>
 
         <h1 class="text-3xl font-bold text-gray-800 mb-3">{{ product.name }}</h1>
 
-        <!-- Ratings -->
         <div class="flex items-center gap-2 mb-3">
             <div class="text-yellow-400 text-lg">
                 {% for i in "12345" %}
@@ -53,12 +123,10 @@
             </span>
         </div>
 
-        <!-- Price -->
         <div class="text-4xl font-extrabold text-purple-600 mb-2">
             <span id="product-price">৳{{ product.price }}</span>
         </div>
 
-        <!-- Stock & Category Badges -->
         <div class="flex flex-wrap gap-3 mb-4">
             {% if product.stock > 0 %}
                 <span id="product-stock-label"
@@ -77,41 +145,53 @@
             </span>
         </div>
 
-        <!-- Short Description -->
         <p class="text-gray-600 text-lg leading-relaxed mb-6">
             {{ product.description }}
         </p>
 
-        <!-- Variant selectors (if any) -->
         {% if product.has_variants %}
-            <div class="mb-6 space-y-4">
+            <div class="mb-8 space-y-6">
                 {% for attr_id, data in variant_attributes.items %}
-                    <div>
-                        <label class="block font-semibold text-gray-800 mb-1">
-                            {{ data.attribute.name }}
+                    <div class="attribute-group" data-attribute-id="{{ data.attribute.id }}">
+                        <label class="block font-semibold text-gray-800 mb-3">
+                            {{ data.attribute.name }}:
                         </label>
-                        <select
-                            class="variant-attribute-select w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-300 outline-none"
-                            data-attribute-id="{{ data.attribute.id }}"
-                        >
-                            <option value="">Select {{ data.attribute.name }}</option>
+                        
+                        <div class="flex flex-wrap gap-3">
                             {% for val in data.values %}
-                                <option value="{{ val.id }}">{{ val.value }}</option>
+                            <label>
+                                <input type="radio" 
+                                       name="attr_{{ data.attribute.id }}" 
+                                       value="{{ val.id }}" 
+                                       class="variant-input">
+                                
+                                {% if data.attribute.type|lower != 'color' %}
+                                    <span class="variant-box">
+                                        {{ val.value }}
+                                    </span>
+                                
+                                {% else %}
+                                    <span class="variant-color"
+                                          style="background-color: {{ val.color_code|default:val.value }};"
+                                          title="{{ val.value }}">
+                                        <i class="fas fa-check check-icon"></i>
+                                    </span>
+                                {% endif %}
+                            </label>
                             {% endfor %}
-                        </select>
+                        </div>
                     </div>
                 {% endfor %}
-                <p id="variant-message" class="text-sm text-orange-600">
-                    Please select all options before adding to cart.
+                
+                <p id="variant-message" class="text-sm font-medium text-orange-600 mt-2">
+                    Please select all options above.
                 </p>
             </div>
         {% endif %}
 
-        <!-- Action Buttons -->
         {% if product.stock > 0 %}
         <div class="flex flex-col sm:flex-row gap-4 mt-6">
 
-            <!-- Add to Cart -->
             <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-full sm:w-1/2">
                 {% csrf_token %}
                 {% if product.has_variants %}
@@ -122,14 +202,13 @@
                         data-product-id="{{ product.id }}"
                         data-product-name="{{ product.name|escapejs }}"
                         data-product-price="{{ product.price|floatformat:2 }}"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition
-                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
+                               {% if product.has_variants %}btn-disabled{% endif %}"
                         {% if product.has_variants %}disabled{% endif %}>
                     <i class="fas fa-shopping-cart mr-2"></i> Add to Cart
                 </button>
             </form>
 
-            <!-- Buy Now (Direct Checkout) -->
             <form action="{% url 'shop:checkout' %}" method="get" class="w-full sm:w-1/2">
                 <input type="hidden" name="buy_now_id" value="{{ product.id }}">
                 {% if product.has_variants %}
@@ -137,8 +216,8 @@
                 {% endif %}
                 <button type="submit"
                         id="buy-now-btn"
-                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition
-                               {% if product.has_variants %}opacity-60 cursor-not-allowed{% endif %}"
+                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
+                               {% if product.has_variants %}btn-disabled{% endif %}"
                         {% if product.has_variants %}disabled{% endif %}>
                     <i class="fas fa-bolt mr-2"></i> Buy Now
                 </button>
@@ -147,7 +226,6 @@
         </div>
         {% endif %}
 
-        <!-- Trust Badges -->
         <div class="mt-8 grid grid-cols-3 gap-4 text-center text-gray-600 text-sm">
             <div class="border p-4 rounded-lg shadow-sm bg-white">
                 <i class="fas fa-truck text-purple-600 text-xl mb-2"></i>
@@ -166,7 +244,6 @@
     </div>
 </div>
 
-<!-- Reviews -->
 <div class="mt-16">
     <h2 class="text-2xl font-bold mb-4">Customer Reviews</h2>
     <div class="border-b mb-6"></div>
@@ -202,46 +279,33 @@
     {% endif %}
 </div>
 
-<!-- Related Products -->
 {% if related_products %}
 <div class="mt-16">
     <h3 class="text-2xl font-bold mb-6">Related Products</h3>
-
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {% for rp in related_products %}
         <div class="bg-white border rounded-xl shadow hover:shadow-lg transition overflow-hidden">
-
             <a href="{% url 'shop:product_detail' rp.slug %}">
                 <img src="{{ rp.image.url }}" class="w-full h-48 object-cover" />
             </a>
-
             <div class="p-4">
                 <h4 class="font-semibold text-gray-800 line-clamp-2">{{ rp.name }}</h4>
-
                 <div class="flex justify-between items-center mt-2">
                     <p class="font-bold text-purple-600 text-lg">৳{{ rp.price }}</p>
-                    <span class="text-yellow-400 text-sm">
-                        {% for i in "12345" %}
-                            {% if forloop.counter <= rp.average_rating %}★{% else %}☆{% endif %}
-                        {% endfor %}
-                    </span>
                 </div>
             </div>
-
             <div class="flex p-4 gap-2 border-t">
                 <a href="{% url 'shop:product_detail' rp.slug %}"
                    class="w-1/2 text-center border border-purple-600 text-purple-600 py-2 rounded-lg hover:bg-purple-50 text-sm">
-                    View Details
+                    View
                 </a>
-
                 <form method="post" action="{% url 'shop:cart_add' rp.id %}" class="w-1/2">
                     {% csrf_token %}
                     <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-sm">
-                        Add to Cart
+                        Add
                     </button>
                 </form>
             </div>
-
         </div>
         {% endfor %}
     </div>
@@ -253,44 +317,13 @@
 {% block extra_js %}
 {{ block.super }}
 
-{% if FACEBOOK_PIXEL_ID %}
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        if (typeof fbq === 'undefined') {
-            return;
-        }
-
-        // ViewContent event
-        fbq('track', 'ViewContent', {
-            content_ids: ['{{ product.id }}'],
-            content_name: '{{ product.name|escapejs }}',
-            content_type: 'product',
-            value: {{ product.price|floatformat:2 }},
-            currency: 'BDT'
-        });
-
-        // AddToCart event (value পরে JS এ variant অনুযায়ী আপডেট হবে)
-        const btn = document.getElementById('add-to-cart-main');
-        if (btn) {
-            btn.addEventListener('click', function () {
-                fbq('track', 'AddToCart', {
-                    content_ids: [this.dataset.productId],
-                    content_name: this.dataset.productName,
-                    content_type: 'product',
-                    value: parseFloat(this.dataset.productPrice),
-                    currency: 'BDT'
-                });
-            });
-        }
-    });
-</script>
-{% endif %}
-
 {% if product.has_variants %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const variantMap = {{ variant_map_json|default:"{}"|safe }};
-        const selects = document.querySelectorAll(".variant-attribute-select");
+        const attributeGroups = document.querySelectorAll(".attribute-group");
+        const allRadioInputs = document.querySelectorAll(".variant-input");
+        
         const hiddenInput = document.getElementById("variant-id-input");
         const addBtn = document.getElementById("add-to-cart-main");
         const priceEl = document.getElementById("product-price");
@@ -299,55 +332,55 @@
         const buyNowBtn = document.getElementById("buy-now-btn");
         const buyNowVariantInput = document.getElementById("buy-now-variant-id");
 
-        function setButtonEnabled(enabled) {
-            if (!addBtn) return;
-            if (enabled) {
-                addBtn.classList.remove("opacity-60", "cursor-not-allowed");
-                addBtn.disabled = false;
-            } else {
-                addBtn.classList.add("opacity-60", "cursor-not-allowed");
-                addBtn.disabled = true;
+        function setButtons(enabled) {
+            if (addBtn) {
+                if (enabled) {
+                    addBtn.classList.remove("btn-disabled");
+                    addBtn.disabled = false;
+                } else {
+                    addBtn.classList.add("btn-disabled");
+                    addBtn.disabled = true;
+                }
             }
-        }
-
-        function setBuyNowEnabled(enabled) {
-            if (!buyNowBtn) return;
-            if (enabled) {
-                buyNowBtn.classList.remove("opacity-60", "cursor-not-allowed");
-                buyNowBtn.disabled = false;
-            } else {
-                buyNowBtn.classList.add("opacity-60", "cursor-not-allowed");
-                buyNowBtn.disabled = true;
+            if (buyNowBtn) {
+                if (enabled) {
+                    buyNowBtn.classList.remove("btn-disabled");
+                    buyNowBtn.disabled = false;
+                } else {
+                    buyNowBtn.classList.add("btn-disabled");
+                    buyNowBtn.disabled = true;
+                }
             }
         }
 
         function updateVariant() {
-            if (!selects.length) {
-                setButtonEnabled(true);
-                setBuyNowEnabled(true);
+            if (!attributeGroups.length) {
+                setButtons(true);
                 return;
             }
 
             const parts = [];
-            selects.forEach(function (sel) {
-                const attrId = sel.dataset.attributeId;
-                const valId = sel.value;
-                if (valId) {
-                    parts.push(attrId + ":" + valId);
+            let allSelected = true;
+
+            attributeGroups.forEach(function (group) {
+                const attrId = group.dataset.attributeId;
+                const checkedInput = group.querySelector("input:checked");
+
+                if (checkedInput) {
+                    parts.push(attrId + ":" + checkedInput.value);
+                } else {
+                    allSelected = false;
                 }
             });
 
-            if (parts.length !== selects.length) {
+            if (!allSelected) {
                 if (messageEl) {
-                    messageEl.textContent = "Please select all options before adding to cart.";
-                    messageEl.classList.remove("text-green-600", "text-red-600");
-                    messageEl.classList.add("text-orange-600");
+                    messageEl.textContent = "Please select all options above.";
+                    messageEl.style.color = "#ea580c"; // Orange
                 }
+                setButtons(false);
                 if (hiddenInput) hiddenInput.value = "";
                 if (buyNowVariantInput) buyNowVariantInput.value = "";
-                setButtonEnabled(false);
-                setBuyNowEnabled(false);
-                if (priceEl) priceEl.textContent = "৳{{ product.price }}";
                 return;
             }
 
@@ -358,54 +391,45 @@
             if (!variant || variant.stock <= 0) {
                 if (messageEl) {
                     messageEl.textContent = "This combination is out of stock.";
-                    messageEl.classList.remove("text-green-600", "text-orange-600");
-                    messageEl.classList.add("text-red-600");
+                    messageEl.style.color = "#dc2626"; // Red
                 }
+                setButtons(false);
                 if (hiddenInput) hiddenInput.value = "";
                 if (buyNowVariantInput) buyNowVariantInput.value = "";
-                setButtonEnabled(false);
-                setBuyNowEnabled(false);
                 if (stockLabel) {
                     stockLabel.textContent = "Out of Stock";
-                    stockLabel.classList.remove("bg-green-500");
-                    stockLabel.classList.add("bg-red-500");
+                    stockLabel.className = "bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow";
                 }
                 return;
             }
 
+            // Success
             if (hiddenInput) hiddenInput.value = variant.id;
             if (buyNowVariantInput) buyNowVariantInput.value = variant.id;
-            setButtonEnabled(true);
-            setBuyNowEnabled(true);
+            setButtons(true);
 
             if (messageEl) {
-                messageEl.textContent = "Ready to add to cart.";
-                messageEl.classList.remove("text-orange-600", "text-red-600");
-                messageEl.classList.add("text-green-600");
+                messageEl.textContent = "Selection available! Ready to order.";
+                messageEl.style.color = "#16a34a"; // Green
             }
             if (priceEl) {
                 priceEl.textContent = "৳" + variant.price.toFixed(2);
             }
             if (stockLabel) {
                 stockLabel.textContent = "In Stock (" + variant.stock + ")";
-                stockLabel.classList.remove("bg-red-500");
-                stockLabel.classList.add("bg-green-500");
+                stockLabel.className = "bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow";
             }
-            // Pixel এর জন্য current price dataset এ রাখি
             if (addBtn) {
                 addBtn.dataset.productPrice = variant.price.toFixed(2);
             }
         }
 
-        selects.forEach(function (sel) {
-            sel.addEventListener("change", updateVariant);
+        allRadioInputs.forEach(function (radio) {
+            radio.addEventListener("change", updateVariant);
         });
 
-        // initial state
-        setButtonEnabled(false);
-        setBuyNowEnabled(false);
+        updateVariant();
     });
 </script>
 {% endif %}
-
 {% endblock %}
