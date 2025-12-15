@@ -205,7 +205,7 @@
                         class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
                                {% if product.has_variants %}btn-disabled{% endif %}"
                         {% if product.has_variants %}disabled{% endif %}>
-                    <i class="fas fa-shopping-cart mr-2"></i> Add to Cart
+                    <i class="fas fa-shopping-cart mr-2"></i> কার্টে যোগ করুন
                 </button>
             </form>
 
@@ -219,7 +219,7 @@
                         class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
                                {% if product.has_variants %}btn-disabled{% endif %}"
                         {% if product.has_variants %}disabled{% endif %}>
-                    <i class="fas fa-bolt mr-2"></i> Buy Now
+                    <i class="fas fa-bolt mr-2"></i> অর্ডার করুন
                 </button>
             </form>
 
@@ -409,7 +409,7 @@
             setButtons(true);
 
             if (messageEl) {
-                messageEl.textContent = "Selection available! Ready to order.";
+                messageEl.textContent = "আপনার নির্বাচন সম্পন্ন হয়েছে! এখনই অর্ডার দিন";
                 messageEl.style.color = "#16a34a"; // Green
             }
             if (priceEl) {
