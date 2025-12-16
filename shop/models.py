@@ -30,7 +30,6 @@ class Product(models.Model):
         related_name="products",
     )
     description = models.TextField()
-    # main/base price (variant থাকলে ওটা override করবে)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveBigIntegerField(default=1)
     available = models.BooleanField(default=True)
@@ -49,7 +48,6 @@ class Product(models.Model):
 
     @property
     def has_variants(self):
-        """Template থেকে সহজে চেক করার জন্য।"""
         return self.variants.exists()
 
     def base_price(self):
@@ -95,7 +93,6 @@ class Attribute(models.Model):
         (WEIGHT, "Weight"),
     )
 
-    # e.g. Weight, Size, Color
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True)
     type = models.CharField(
@@ -119,7 +116,6 @@ class AttributeValue(models.Model):
         on_delete=models.CASCADE,
         related_name="values",
     )
-    # e.g. 500gm, 1kg, Red, XL
     value = models.CharField(max_length=100)
     color_code = models.CharField(
         max_length=7,
@@ -180,7 +176,6 @@ class ProductVariant(models.Model):
         return f"{self.product.name} ({attrs})" if attrs else self.product.name
 
     def get_price(self):
-        """Variant এর নিজস্ব price থাকলে সেটা, না থাকলে product.price."""
         return self.price if self.price is not None else self.product.price
 
 
@@ -202,9 +197,6 @@ class Cart(models.Model):
         return sum(item.quantity for item in self.items.all())
 
 
-# ===============================
-# CART ITEM
-# ===============================
 class CartItem(models.Model):
     cart = models.ForeignKey(
         Cart,
@@ -212,8 +204,6 @@ class CartItem(models.Model):
         related_name="items",
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-
-    # কোন variant (optional)
     variant = models.ForeignKey(
         ProductVariant,
         on_delete=models.SET_NULL,
@@ -221,7 +211,6 @@ class CartItem(models.Model):
         blank=True,
         related_name="cart_items",
     )
-
     quantity = models.PositiveIntegerField(default=1)
 
     def __str__(self):
@@ -239,15 +228,23 @@ class CartItem(models.Model):
 
 
 # ===============================
-# ORDER MODEL
+# [NEW] DYNAMIC DELIVERY OPTIONS
+# ===============================
+class DeliveryOption(models.Model):
+    location = models.CharField(max_length=100, help_text="e.g. Inside Dhaka, Outside Dhaka")
+    price = models.DecimalField(max_digits=6, decimal_places=2, help_text="Delivery charge amount")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.location} - ৳{self.price}"
+
+
+# ===============================
+# ORDER MODEL (Updated)
 # ===============================
 class Order(models.Model):
-
-    DELIVERY_AREAS = (
-        ("dhaka", "Dhaka City – ৳70"),
-        ("outside", "Outside Dhaka – ৳120"),
-    )
-
+    
     PAYMENT_METHODS = (
         ("cod", "Cash On Delivery"),
         ("sslcommerz", "SSLCommerz Online Payment"),
@@ -269,17 +266,13 @@ class Order(models.Model):
         related_name="orders",
     )
 
-    # Main customer fields
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=20)
     address = models.TextField()
 
-    delivery_area = models.CharField(
-        max_length=20,
-        choices=DELIVERY_AREAS,
-        default="dhaka",
-    )
-    delivery_charge = models.PositiveIntegerField(default=70)
+    # [UPDATED] Delivery area is now stored as string, charge as Decimal
+    delivery_area = models.CharField(max_length=100, help_text="Selected delivery location name")
+    delivery_charge = models.DecimalField(max_digits=6, decimal_places=2, default=0)
 
     payment_method = models.CharField(
         max_length=20,
@@ -295,30 +288,12 @@ class Order(models.Model):
     paid = models.BooleanField(default=False)
     transaction_id = models.CharField(max_length=200, blank=True)
 
-    # -------- Steadfast integration fields --------
-    steadfast_invoice = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="Invoice string sent to Steadfast (e.g. ORD-123).",
-    )
-    steadfast_consignment_id = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="Consignment id returned by Steadfast.",
-    )
-    steadfast_tracking_code = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="Tracking code returned by Steadfast.",
-    )
-    steadfast_status = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="Latest delivery status from Steadfast.",
-    )
+    # -------- Steadfast & Fraud Check Fields (PRESERVED) --------
+    steadfast_invoice = models.CharField(max_length=100, blank=True)
+    steadfast_consignment_id = models.CharField(max_length=50, blank=True)
+    steadfast_tracking_code = models.CharField(max_length=50, blank=True)
+    steadfast_status = models.CharField(max_length=50, blank=True)
     
-    # -------- [NEW] Fraud Check Caching Field --------
-    # এখানে API রেজাল্ট সেভ থাকবে, যাতে বারবার রিকোয়েস্ট না যায়
     fraud_report_data = models.JSONField(
         blank=True, 
         null=True, 
@@ -352,8 +327,6 @@ class OrderItem(models.Model):
         related_name="items",
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-
-    # কোন variant ছিল (optional)
     variant = models.ForeignKey(
         ProductVariant,
         on_delete=models.SET_NULL,
@@ -361,9 +334,7 @@ class OrderItem(models.Model):
         blank=True,
         related_name="order_items",
     )
-
     quantity = models.PositiveIntegerField(default=1)
-    # snapshot of unit price
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
@@ -376,24 +347,27 @@ class OrderItem(models.Model):
 
 
 # ===============================
-# SITE SETTINGS (Logo + Site Name)
+# SITE SETTINGS
 # ===============================
 class SiteSettings(models.Model):
-    site_name = models.CharField(
-        max_length=200,
-        default="E-Shop",
-        help_text="Website name shown in navbar and footer.",
-    )
-    logo = models.ImageField(
-        upload_to="site_logo/",
-        blank=True,
-        null=True,
-        help_text="Upload the main logo for the site.",
-    )
+    site_name = models.CharField(max_length=200, default="E-Shop")
+    logo = models.ImageField(upload_to="site_logo/", blank=True, null=True)
+    
+    about_text = models.TextField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    
+    facebook = models.URLField(blank=True)
+    instagram = models.URLField(blank=True)
+    youtube = models.URLField(blank=True)
+    twitter = models.URLField(blank=True)
+    
+    footer_text = models.CharField(max_length=255, blank=True, default="All Rights Reserved.")
 
     class Meta:
         verbose_name = "Site Settings"
         verbose_name_plural = "Site Settings"
 
     def __str__(self):
-        return "Website Settings"
+        return "Website Configuration"

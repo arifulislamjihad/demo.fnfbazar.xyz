@@ -20,8 +20,6 @@ class RegistrationForm(UserCreationForm):
             "first_name",
             "last_name",
             "email",
-            "password1",
-            "password2",
         ]
 
 
@@ -39,11 +37,10 @@ class RatingForm(forms.ModelForm):
 
 
 # -------------------------
-#  CHECKOUT FORM (Name, Phone, Address, Delivery, Payment)
+#  CHECKOUT FORM
 # -------------------------
 class CheckoutForm(forms.ModelForm):
-    # Choices model থেকে নিলাম
-    DELIVERY_CHOICES = Order.DELIVERY_AREAS
+    # PAYMENT_CHOICES মডেল থেকে নেওয়া নিরাপদ
     PAYMENT_CHOICES = Order.PAYMENT_METHODS
 
     name = forms.CharField(
@@ -52,7 +49,7 @@ class CheckoutForm(forms.ModelForm):
         widget=forms.TextInput(
             attrs={
                 "placeholder": "Your name",
-                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300",
+                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300 outline-none",
             }
         ),
     )
@@ -63,7 +60,7 @@ class CheckoutForm(forms.ModelForm):
         widget=forms.TextInput(
             attrs={
                 "placeholder": "01XXXXXXXXX",
-                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300",
+                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300 outline-none",
             }
         ),
     )
@@ -74,37 +71,36 @@ class CheckoutForm(forms.ModelForm):
             attrs={
                 "placeholder": "Full address…",
                 "rows": 3,
-                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300",
+                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300 outline-none",
             }
         ),
     )
 
-    delivery_area = forms.ChoiceField(
-        label="Delivery Area",
-        choices=DELIVERY_CHOICES,
-        widget=forms.Select(
-            attrs={
-                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300",
-            }
-        ),
-    )
-
+    # [NOTE] delivery_area এখান থেকে বাদ দেওয়া হয়েছে কারণ 
+    # সেটি এখন ডায়নামিক এবং HTML টেমপ্লেটে সরাসরি রেন্ডার করা হয়।
+    
     payment_method = forms.ChoiceField(
         label="Payment Method",
         choices=PAYMENT_CHOICES,
         initial="cod",
-        widget=forms.RadioSelect(attrs={"class": "space-y-2"}),
+        widget=forms.Select( # রেডিও বাটনের বদলে ড্রপডাউন বা সিলেক্ট দেওয়া হলো স্টাইলের জন্য
+            attrs={
+                "class": "w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-300 outline-none bg-white"
+            }
+        ),
     )
 
     class Meta:
         model = Order
-        fields = ["name", "phone", "address", "delivery_area", "payment_method"]
+        # delivery_area বাদ দেওয়া হয়েছে কারণ ভিউ সেটি ম্যানুয়ালি হ্যান্ডেল করবে
+        fields = ["name", "phone", "address", "payment_method"]
 
-    # ------- simple validation ----------
+    # ------- Simple Validation ----------
     def clean_phone(self):
         phone = self.cleaned_data.get("phone", "").strip()
         if not phone:
             raise forms.ValidationError("Phone is required.")
+        # বাংলাদশি নাম্বারের জন্য সাধারণ চেক (ঐচ্ছিক)
         digits = [ch for ch in phone if ch.isdigit()]
         if len(digits) < 10:
             raise forms.ValidationError("Enter a valid phone number.")

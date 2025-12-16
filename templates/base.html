@@ -10,7 +10,6 @@
     </title>
     {% load static %}
 
-    <!-- Facebook Pixel Code (global) -->
     {% if FACEBOOK_PIXEL_ID %}
     <script>
         !function(f,b,e,v,n,t,s)
@@ -30,16 +29,11 @@
              src="https://www.facebook.com/tr?id={{ FACEBOOK_PIXEL_ID }}&ev=PageView&noscript=1"/>
     </noscript>
     {% endif %}
-    <!-- End Facebook Pixel Code -->
-
-    <!-- Tailwind CSS -->
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
 
-    <!-- Font Awesome -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-    <!-- Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet">
 
@@ -52,11 +46,9 @@
 
 <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
 
-    <!-- Navbar -->
     <header class="bg-white shadow-md sticky top-0 z-50">
         <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
 
-            <!-- Logo / Site Name -->
             <a href="{% url 'shop:home' %}" class="flex items-center space-x-2">
                 {% if site_settings and site_settings.logo %}
                     <img src="{{ site_settings.logo.url }}"
@@ -69,21 +61,17 @@
                 {% endif %}
             </a>
 
-            <!-- Mobile Menu Button -->
             <button id="menu-btn" class="lg:hidden text-gray-700 text-2xl">
                 <i class="fas fa-bars"></i>
             </button>
 
-            <!-- Menu -->
             <ul id="menu" class="hidden lg:flex space-x-8 text-gray-700 font-medium">
                 <li><a href="{% url 'shop:home' %}" class="hover:text-purple-600">Home</a></li>
                 <li><a href="{% url 'shop:product_list' %}" class="hover:text-purple-600">Products</a></li>
             </ul>
 
-            <!-- Right Side -->
             <div class="hidden lg:flex items-center space-x-6">
 
-                <!-- Search -->
                 <form action="{% url 'shop:product_list' %}" method="get" class="flex">
                     <input name="search" type="text" placeholder="Search..."
                            class="px-3 py-2 border border-gray-300 rounded-l-full focus:ring-2 focus:ring-purple-300 outline-none">
@@ -92,7 +80,6 @@
                     </button>
                 </form>
 
-                <!-- Cart -->
                 <a href="{% url 'shop:cart_detail' %}" class="relative text-gray-700 hover:text-purple-600">
                     <i class="fas fa-shopping-cart text-2xl"></i>
                     {% if cart_items_count %}
@@ -103,7 +90,6 @@
                 </a>
 
                 {% if user.is_authenticated %}
-                    <!-- User Dropdown -->
                     <div class="relative group">
                         <button class="flex items-center space-x-2 text-gray-700 hover:text-purple-600">
                             <i class="fas fa-user-circle text-2xl"></i>
@@ -127,7 +113,6 @@
             </div>
         </nav>
 
-        <!-- Mobile Dropdown -->
         <ul id="mobile-menu"
             class="hidden lg:hidden bg-white shadow-md px-6 pb-4 space-y-3 text-gray-700 font-medium">
             <li><a href="{% url 'shop:home' %}" class="block py-2">Home</a></li>
@@ -142,7 +127,6 @@
         </script>
     </header>
 
-    <!-- Main Content -->
     <main class="container mx-auto my-6 px-4 flex-1">
         {% if messages %}
             <div class="mb-4">
@@ -161,35 +145,64 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
     <footer class="bg-gray-100 mt-10 py-10">
         <div class="container mx-auto px-4 grid md:grid-cols-3 gap-6">
 
             <div>
                 <h3 class="text-xl font-semibold text-purple-600 mb-3">About Us</h3>
                 <p class="text-gray-600">
-                    We provide high-quality products at affordable prices.
+                    {{ site_settings.about_text|default:"We provide high-quality products at affordable prices." }}
                 </p>
             </div>
 
             <div>
                 <h3 class="text-xl font-semibold text-purple-600 mb-3">Contact</h3>
-                <p class="text-gray-600">Email: contact@fnfbazar.xyz</p>
-                <p class="text-gray-600">Phone: +880 1944-282279</p>
+                {% if site_settings.email %}
+                    <p class="text-gray-600">Email: {{ site_settings.email }}</p>
+                {% endif %}
+                
+                {% if site_settings.phone %}
+                    <p class="text-gray-600">Phone: {{ site_settings.phone }}</p>
+                {% endif %}
+
+                {% if site_settings.address %}
+                    <p class="text-gray-600 mt-1">{{ site_settings.address }}</p>
+                {% endif %}
             </div>
 
             <div>
                 <h3 class="text-xl font-semibold text-purple-600 mb-3">Follow Us</h3>
                 <div class="flex space-x-4">
-                    <i class="fab fa-facebook text-2xl text-purple-600"></i>
-                    <i class="fab fa-twitter text-2xl text-purple-600"></i>
-                    <i class="fab fa-instagram text-2xl text-purple-600"></i>
+                    {% if site_settings.facebook %}
+                        <a href="{{ site_settings.facebook }}" target="_blank" class="hover:text-purple-800">
+                            <i class="fab fa-facebook text-2xl text-purple-600"></i>
+                        </a>
+                    {% endif %}
+                    
+                    {% if site_settings.twitter %}
+                        <a href="{{ site_settings.twitter }}" target="_blank" class="hover:text-purple-800">
+                            <i class="fab fa-twitter text-2xl text-purple-600"></i>
+                        </a>
+                    {% endif %}
+                    
+                    {% if site_settings.instagram %}
+                        <a href="{{ site_settings.instagram }}" target="_blank" class="hover:text-purple-800">
+                            <i class="fab fa-instagram text-2xl text-purple-600"></i>
+                        </a>
+                    {% endif %}
+
+                    {% if site_settings.youtube %}
+                        <a href="{{ site_settings.youtube }}" target="_blank" class="hover:text-purple-800">
+                            <i class="fab fa-youtube text-2xl text-purple-600"></i>
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <p class="text-center text-gray-600 mt-6">
-            &copy; {% now "Y" %} {{ site_settings.site_name|default:"E-Shop" }}. All rights reserved.
+            &copy; {% now "Y" %} {{ site_settings.site_name|default:"E-Shop" }}. 
+            {{ site_settings.footer_text|default:"All Rights Reserved." }}
         </p>
     </footer>
 

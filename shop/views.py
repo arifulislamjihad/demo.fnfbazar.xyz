@@ -16,6 +16,7 @@ from .models import (
     Order,
     OrderItem,
     ProductVariant,
+    DeliveryOption, # [NEW]
 )
 from .forms import RegistrationForm, RatingForm, CheckoutForm
 from .utils import generate_sslcommerz_payment, send_order_confirmation_email
@@ -102,7 +103,7 @@ def product_list(request, category_slug=None):
 
 
 # ============================================================
-# PRODUCT DETAIL (FIXED LOGIC FOR ATTRIBUTES)
+# PRODUCT DETAIL
 # ============================================================
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
@@ -111,7 +112,6 @@ def product_detail(request, slug):
         category=product.category, available=True
     ).exclude(id=product.id)[:4]
 
-    # User rating
     user_rating = None
     if request.user.is_authenticated:
         try:
@@ -121,49 +121,28 @@ def product_detail(request, slug):
 
     rating_form = RatingForm(instance=user_rating)
 
-    # ---------------------------------------------------------
-    # VARIANT ATTRIBUTE LOGIC
-    # ---------------------------------------------------------
-    
-    # ১. সব অ্যাক্টিভ ভেরিয়েন্ট বের করি এবং তাদের অ্যাট্রিবিউটগুলো লোড করি
+    # Variant Logic
     variants = product.variants.filter(is_active=True).prefetch_related('attribute_values__attribute')
-
-    # Frontend-এ দেখানোর জন্য ডিকশনারি
-    # Structure: { attr_id: { 'attribute': AttributeObj, 'values': [ValueObj, ValueObj] } }
     variant_attributes = {}
-    
-    # JavaScript এর জন্য ম্যাপিং (Price/Stock update করার জন্য)
     variant_map = {}
 
     if product.has_variants:
         for variant in variants:
-            # JS Map এর জন্য Key তৈরি (যেমন: "color_id:red_id|size_id:xl_id")
             temp_key = []
-            
-            # এই ভেরিয়েন্টের সব অ্যাট্রিবিউট ভ্যালু চেক করি
             for val in variant.attribute_values.all():
                 attr = val.attribute
-                
-                # --- Template Data সাজানো ---
                 if attr.id not in variant_attributes:
                     variant_attributes[attr.id] = {
                         'attribute': attr,
                         'values': []
                     }
-                
-                # ডুপ্লিকেট ভ্যালু আটকাতে চেক করি (যেমন Red দুইবার না আসে)
                 existing_ids = [v.id for v in variant_attributes[attr.id]['values']]
                 if val.id not in existing_ids:
                     variant_attributes[attr.id]['values'].append(val)
-                
-                # --- JS Key তৈরি ---
                 temp_key.append(f"{attr.id}:{val.id}")
 
-            # Key গুলো sort করি যাতে উল্টাপাল্টা না হয়
             temp_key.sort()
             final_key = "|".join(temp_key)
-
-            # JS Map এ তথ্য রাখি
             variant_map[final_key] = {
                 'id': variant.id,
                 'price': float(variant.get_price()),
@@ -175,7 +154,7 @@ def product_detail(request, slug):
         "related_products": related_products,
         "user_rating": user_rating,
         "rating_form": rating_form,
-        "variant_attributes": variant_attributes, # এই variable টি টেম্পলেটে লুপ হবে
+        "variant_attributes": variant_attributes,
         "variant_map_json": json.dumps(variant_map),
     }
 
@@ -327,10 +306,11 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT
+# CHECKOUT (UPDATED FOR DYNAMIC DELIVERY)
 # ============================================================
 @csrf_exempt
 def checkout(request):
+    # --- Buy Now Logic ---
     buy_now_id = request.GET.get("buy_now_id")
     buy_now_variant_id = request.GET.get("variant_id")
 
@@ -346,13 +326,10 @@ def checkout(request):
 
     if buy_now_id:
         product_for_buy_now = get_object_or_404(Product, id=buy_now_id, available=True)
-
         if buy_now_variant_id:
             try:
                 variant_for_buy_now = ProductVariant.objects.get(
-                    id=buy_now_variant_id,
-                    product=product_for_buy_now,
-                    is_active=True,
+                    id=buy_now_variant_id, product=product_for_buy_now, is_active=True
                 )
             except ProductVariant.DoesNotExist:
                 variant_for_buy_now = None
@@ -362,107 +339,110 @@ def checkout(request):
                 self.product = product
                 self.variant = variant
                 self.quantity = 1
-
             def get_unit_price(self):
-                if self.variant:
-                    return self.variant.get_price()
+                if self.variant: return self.variant.get_price()
                 return self.product.price
-
             @property
-            def get_cost(self):
-                return self.get_unit_price() * self.quantity
+            def get_cost(self): return self.get_unit_price() * self.quantity
 
         class BuyNowCart:
             def __init__(self, product, variant=None):
                 self.items = [BuyNowItem(product, variant)]
-
-            def get_total_price(self):
-                return self.items[0].get_cost
-
-            def get_total_items(self):
-                return 1
+            def get_total_price(self): return self.items[0].get_cost
+            def get_total_items(self): return 1
 
         cart = BuyNowCart(product_for_buy_now, variant_for_buy_now)
         is_buy_now = True
     else:
         cart = _get_cart(request)
         is_buy_now = False
-
         if not getattr(cart, "items", None):
             messages.warning(request, "Your cart is empty.")
             return redirect("shop:cart_detail")
 
+    # --- Fetch Data ---
     subtotal = cart.get_total_price()
-    delivery_preview = 70
+    # [NEW] Fetch dynamic options
+    delivery_options = DeliveryOption.objects.filter(is_active=True)
+    
+    # Default preview if user hasn't selected
+    delivery_preview = 0 
+    if delivery_options.exists():
+        delivery_preview = delivery_options.first().price
+    
     total_preview = subtotal + delivery_preview
 
     if request.method == "POST":
-        form = CheckoutForm(request.POST)
+        # Form manual handling for better control over delivery_option
+        name = request.POST.get("name")
+        phone = request.POST.get("phone")
+        address = request.POST.get("address")
+        delivery_option_id = request.POST.get("delivery_area") # from <select>
+        payment_method = request.POST.get("payment_method")
 
-        if form.is_valid():
-            order = form.save(commit=False)
+        # Find selected delivery option
+        try:
+            selected_option = DeliveryOption.objects.get(id=delivery_option_id)
+            d_area_name = selected_option.location
+            d_charge = selected_option.price
+        except (DeliveryOption.DoesNotExist, ValueError):
+            d_area_name = "Unknown"
+            d_charge = 0
 
-            if order.delivery_area == "dhaka":
-                order.delivery_charge = 70
-            else:
-                order.delivery_charge = 120
+        # Create Order
+        order = Order.objects.create(
+            user=request.user if request.user.is_authenticated else None,
+            name=name,
+            phone=phone,
+            address=address,
+            delivery_area=d_area_name,
+            delivery_charge=d_charge,
+            payment_method=payment_method,
+            status="pending"
+        )
 
-            if request.user.is_authenticated:
-                order.user = request.user
-
-            order.save()
-
-            if is_buy_now:
-                if variant_for_buy_now:
-                    unit_price = variant_for_buy_now.get_price()
-                else:
-                    unit_price = product_for_buy_now.price
-
+        # Move items to order
+        if is_buy_now:
+            unit_price = variant_for_buy_now.get_price() if variant_for_buy_now else product_for_buy_now.price
+            OrderItem.objects.create(
+                order=order,
+                product=product_for_buy_now,
+                variant=variant_for_buy_now,
+                quantity=1,
+                price=unit_price,
+            )
+            request.session.pop("buy_now_id", None)
+            request.session.pop("buy_now_variant_id", None)
+        else:
+            for item in cart.items:
+                unit_price = item.get_unit_price() if hasattr(item, "get_unit_price") else item.product.price
                 OrderItem.objects.create(
                     order=order,
-                    product=product_for_buy_now,
-                    variant=variant_for_buy_now,
-                    quantity=1,
+                    product=item.product,
+                    variant=getattr(item, "variant", None),
+                    quantity=item.quantity,
                     price=unit_price,
                 )
-                request.session.pop("buy_now_id", None)
-                request.session.pop("buy_now_variant_id", None)
+            # Clear Cart
+            if request.user.is_authenticated:
+                CartItem.objects.filter(cart__user=request.user).delete()
             else:
-                for item in cart.items:
-                    unit_price = (
-                        item.get_unit_price()
-                        if hasattr(item, "get_unit_price")
-                        else item.product.price
-                    )
-                    OrderItem.objects.create(
-                        order=order,
-                        product=item.product,
-                        variant=getattr(item, "variant", None),
-                        quantity=item.quantity,
-                        price=unit_price,
-                    )
+                request.session["guest_cart"] = {}
 
-                if request.user.is_authenticated:
-                    CartItem.objects.filter(cart__user=request.user).delete()
-                else:
-                    request.session["guest_cart"] = {}
+        if order.payment_method == "cod":
+            return render(request, "shop/payment_success.html", {"order": order})
 
-            if order.payment_method == "cod":
-                return render(request, "shop/payment_success.html", {"order": order})
+        request.session["order_id"] = order.id
+        return redirect("shop:payment_process")
 
-            request.session["order_id"] = order.id
-            return redirect("shop:payment_process")
-
-    else:
-        form = CheckoutForm()
-
+    # [UPDATED CONTEXT]
     return render(
         request,
         "shop/checkout.html",
         {
             "cart": cart,
-            "form": form,
             "subtotal": subtotal,
+            "delivery_options": delivery_options, # Pass options to template
             "delivery_preview": delivery_preview,
             "total_preview": total_preview,
             "is_buy_now": is_buy_now,
