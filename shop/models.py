@@ -316,7 +316,15 @@ class Order(models.Model):
         blank=True,
         help_text="Latest delivery status from Steadfast.",
     )
-    # ---------------------------------------------
+    
+    # -------- [NEW] Fraud Check Caching Field --------
+    # এখানে API রেজাল্ট সেভ থাকবে, যাতে বারবার রিকোয়েস্ট না যায়
+    fraud_report_data = models.JSONField(
+        blank=True, 
+        null=True, 
+        help_text="OneCodeSoft API Response Cache"
+    )
+    # ------------------------------------------------
 
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
