@@ -3,6 +3,8 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.db import models
 from django.forms import CheckboxSelectMultiple
+from django.utils import timezone            # [NEW] Time calculation
+from django.utils.timesince import timesince # [NEW] Time ago feature
 
 from .models import (
     Category,
@@ -16,15 +18,12 @@ from .models import (
     Attribute,
     AttributeValue,
     ProductVariant,
-    DeliveryOption, # [NEW] Added here
+    DeliveryOption,
 )
 from .steadfast import send_order_to_steadfast, refresh_steadfast_status
 from .utils import get_customer_fraud_report
 
 
-# ===============================
-# DELIVERY OPTION ADMIN [NEW]
-# ===============================
 @admin.register(DeliveryOption)
 class DeliveryOptionAdmin(admin.ModelAdmin):
     list_display = ("location", "price", "is_active")
@@ -92,32 +91,34 @@ class CartAdmin(admin.ModelAdmin):
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
+    readonly_fields = ('product', 'variant', 'quantity', 'price')
+    can_delete = False
 
 
+# ============================================================
+# PROFESSIONAL ORDER ADMIN
+# ============================================================
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
-        "user",
-        "name",
-        "phone",
-        "fraud_check_badge", 
-        "delivery_area",
-        "delivery_charge",
-        "payment_method",
-        "status",
-        "paid",
-        "steadfast_status",
-        "created",
+        "order_id_display",
+        "customer_info_display",  
+        "order_items_display",    
+        "amount_info_display",    
+        "payment_status_display", 
+        "status_label",           
+        "steadfast_info", 
+        "created_at_display", # [UPDATED] Date & Time Column
     )
+    
     list_filter = (
         "status",
         "paid",
         "payment_method",
-        "delivery_area",
         "created",
         "steadfast_status",
     )
+    
     search_fields = (
         "id",
         "name",
@@ -125,57 +126,213 @@ class OrderAdmin(admin.ModelAdmin):
         "address",
         "steadfast_tracking_code",
         "steadfast_invoice",
+        "steadfast_consignment_id",
     )
     
     readonly_fields = ("fraud_report_detail",)
     inlines = [OrderItemInline]
-
     actions = ["send_to_steadfast_action", "update_steadfast_status_action", "manual_check_fraud_action"]
+    list_per_page = 20
 
-    # --- FEATURE 1: Smart Fraud Check (Cached + Center Popup) ---
+    # --- 1. Order ID ---
+    def order_id_display(self, obj):
+        return format_html('<b>#{}</b>', obj.id)
+    order_id_display.short_description = "ID"
+
+    # --- 2. Customer Info ---
+    def customer_info_display(self, obj):
+        badge = self.fraud_check_badge(obj)
+        addr = obj.address
+        if len(addr) > 40:
+            addr = addr[:40] + "..."
+
+        return format_html(
+            """
+            <div style="line-height: 1.4;">
+                <div style="font-weight:bold; font-size:13px; color:#333;">{}</div>
+                <div style="color:#555; font-size: 12px;">📞 {}</div>
+                <div style="color:#777; font-size: 11px;">📍 {}</div>
+                <div style="margin-top:4px;">{}</div>
+            </div>
+            """,
+            obj.name,
+            obj.phone,
+            addr,
+            badge
+        )
+    customer_info_display.short_description = "Customer Details"
+
+    # --- 3. Product Summary ---
+    def order_items_display(self, obj):
+        items = obj.items.all()
+        if not items:
+            return "-"
+        
+        html_content = '<ul style="margin: 0; padding-left: 15px; font-size: 12px; color: #444;">'
+        for item in items:
+            variant_txt = f" ({item.variant})" if item.variant else ""
+            html_content += f"<li>{item.quantity}x <b>{item.product.name}</b>{variant_txt}</li>"
+        html_content += '</ul>'
+        
+        return mark_safe(html_content)
+    order_items_display.short_description = "Products"
+
+    # --- 4. Amount Info ---
+    def amount_info_display(self, obj):
+        total = obj.get_total_cost()
+        return format_html(
+            """
+            <div style="font-size:14px; font-weight:bold; color:#108a00;">৳{}</div>
+            <div style="font-size:10px; color:#666;">Delivery: ৳{}</div>
+            """,
+            total,
+            obj.delivery_charge
+        )
+    amount_info_display.short_description = "Total"
+
+    # --- 5. Payment Status ---
+    def payment_status_display(self, obj):
+        method_map = {'cod': 'COD', 'sslcommerz': 'Online'}
+        method = method_map.get(obj.payment_method, obj.payment_method)
+        
+        if obj.paid:
+            status_icon = '<span style="color:green; font-weight:bold;">✔ PAID</span>'
+        else:
+            status_icon = '<span style="color:red; font-weight:bold;">✖ UNPAID</span>'
+            
+        return format_html(
+            '<div style="font-weight:bold; color:#444;">{}</div><div style="font-size:11px;">{}</div>',
+            method,
+            mark_safe(status_icon)
+        )
+    payment_status_display.short_description = "Payment"
+
+    # --- 6. Order Status Label ---
+    def status_label(self, obj):
+        colors = {
+            'pending': '#f59e0b',
+            'processing': '#3b82f6',
+            'shipped': '#8b5cf6',
+            'delivered': '#10b981',
+            'canceled': '#ef4444',
+        }
+        color = colors.get(obj.status, '#6b7280')
+        return format_html(
+            '<span style="background-color:{}; color:white; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:bold; text-transform:uppercase;">{}</span>',
+            color,
+            obj.status
+        )
+    status_label.short_description = "Status"
+
+    # --- 7. Courier Info ---
+    def steadfast_info(self, obj):
+        if not obj.steadfast_consignment_id:
+            return mark_safe('<span style="color:#bbb; font-size:11px;">Not Sent</span>')
+
+        st_color = "#1565c0"
+        bg_color = "#e3f2fd"
+        if obj.steadfast_status == 'delivered':
+            st_color = "#166534"
+            bg_color = "#dcfce7"
+        elif obj.steadfast_status == 'cancelled':
+            st_color = "#991b1b"
+            bg_color = "#fee2e2"
+            
+        status_html = f'<span style="background:{bg_color}; color:{st_color}; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; text-transform:uppercase; border: 1px solid {st_color}40;">{obj.steadfast_status}</span>'
+        track_url = f"https://steadfast.com.bd/t/{obj.steadfast_tracking_code}"
+        
+        return format_html(
+            """
+            <div style="line-height: 1.5;">
+                <div style="margin-bottom:4px;">{}</div>
+                <div style="font-size: 11px; color: #333;"><b>CID:</b> {}</div>
+                <div style="margin-top:5px;">
+                    <a href="{}" target="_blank" style="background:#2563eb; color:white; padding:3px 8px; border-radius:4px; text-decoration:none; font-size:10px; font-weight:bold;">
+                       🚀 Live Track
+                    </a>
+                </div>
+            </div>
+            """,
+            mark_safe(status_html),
+            obj.steadfast_consignment_id,
+            track_url
+        )
+    steadfast_info.short_description = "Courier (Steadfast)"
+
+    # --- 8. Date & Time (UPDATED: Relative Time) ---
+    def created_at_display(self, obj):
+        # Convert to local time (important for correct day/time)
+        local_time = timezone.localtime(obj.created)
+        
+        # Formats: 17 Dec, 2025 | 03:45 PM
+        date_str = local_time.strftime("%d %b, %Y")
+        time_str = local_time.strftime("%I:%M %p")
+        
+        # Calculate time ago (e.g., "2 hours, 10 minutes") -> split for "2 hours"
+        ago_full = timesince(local_time).split(",")[0]
+        ago_str = f"{ago_full} ago"
+        
+        # Style: If created within last 24 hours, make it Green/Bold
+        diff = timezone.now() - obj.created
+        if diff.days < 1:
+            ago_style = "color:#166534; font-weight:bold;"
+        else:
+            ago_style = "color:#666;"
+
+        return format_html(
+            """
+            <div style="white-space:nowrap; line-height:1.4;">
+                <div style="font-weight:600; color:#333; font-size:12px;">{}</div>
+                <div style="font-size:11px; color:#555;">{}</div>
+                <div style="font-size:10px; margin-top:2px; {}">{}</div>
+            </div>
+            """,
+            date_str,
+            time_str,
+            ago_style,
+            ago_str
+        )
+    created_at_display.short_description = "Date & Time"
+
+    # ============================================================
+    # FRAUD CHECK LOGIC
+    # ============================================================
     def fraud_check_badge(self, obj):
-        if not obj.phone: return "-"
+        if not obj.phone: return ""
         
         data = obj.fraud_report_data
+        
         if not data:
             if obj.status == 'pending':
-                api_response = get_customer_fraud_report(obj.phone)
-                if api_response and "total_parcel" in api_response:
-                    obj.fraud_report_data = api_response
-                    obj.save(update_fields=['fraud_report_data'])
-                    data = api_response
-                elif isinstance(api_response, dict) and "error" in api_response:
-                    return format_html('<span style="color:red; font-size:10px;">{}</span>', api_response["error"])
-            else:
-                return format_html('<span style="color:#888; font-size:11px; cursor:help;" title="Select and use action to check">Not Checked</span>')
-
+                try:
+                    api_response = get_customer_fraud_report(obj.phone)
+                    if api_response and "total_parcel" in api_response:
+                        obj.fraud_report_data = api_response
+                        obj.save(update_fields=['fraud_report_data'])
+                        data = api_response
+                except:
+                    pass
+        
         if not data or "total_parcel" not in data:
-            return mark_safe('<span style="color:gray;">No Data</span>')
+            return mark_safe('<span style="color:#bbb; font-size:10px;">Check Needed</span>')
 
         try:
             total = int(float(data.get("total_parcel", 0)))
             canceled = int(float(data.get("cancel_parcel", 0)))
             success = int(float(data.get("success_parcel", 0)))
-        except (ValueError, TypeError):
-            return mark_safe('<span style="color:gray;">Data Error</span>')
+        except:
+            return ""
 
         if total == 0:
-            return mark_safe('<span style="color:blue; font-weight:bold;">New Customer</span>')
+            return mark_safe('<span style="color:blue; font-weight:bold; font-size:10px;">New Customer</span>')
 
-        cancel_rate = 0
-        if total > 0:
-            cancel_rate = (canceled / total) * 100
+        cancel_rate = (canceled / total) * 100 if total > 0 else 0
+        success_rate = (success / total) * 100 if total > 0 else 0
 
-        if cancel_rate > 30: 
-            badge_html = f'''<div style="background-color:#ffebee; color:#c62828; padding:4px 8px; border-radius:15px; border:1px solid #c62828; font-weight:bold; text-align:center; cursor:pointer; font-size:12px; display:inline-block;">⚠️ Risky ({int(cancel_rate)}%)</div>'''
-        else: 
-            success_rate = (success / total) * 100
-            badge_html = f'''<div style="background-color:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:15px; border:1px solid #2e7d32; font-weight:bold; text-align:center; cursor:pointer; font-size:12px; display:inline-block;">✅ Safe ({int(success_rate)}%)</div>'''
-
+        # Popup Logic
         courier_data = data.get("response", {})
         popup_rows = ""
         has_data = False
-        
         for courier_name, info in courier_data.items():
             stats = info.get("data", {}) if isinstance(info, dict) else {}
             if stats:
@@ -184,18 +341,53 @@ class OrderAdmin(admin.ModelAdmin):
                 c_success = int(float(stats.get('success', 0)))
                 if c_total > 0:
                     has_data = True
-                    popup_rows += f"""<tr style="border-bottom: 1px solid #eee;"><td style="padding:8px; text-transform:capitalize; color:#000; font-weight:600; text-align:left;">{courier_name}</td><td style="padding:8px; text-align:center; color:#000;">{c_total}</td><td style="padding:8px; text-align:center; color:#166534; font-weight:bold;">{c_success}</td><td style="padding:8px; text-align:center; color:#dc2626; font-weight:bold;">{c_cancel}</td></tr>"""
-        
+                    popup_rows += f"""
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding:4px; text-transform:capitalize; color:#000;">{courier_name}</td>
+                            <td style="padding:4px; text-align:center; color:#000;">{c_total}</td>
+                            <td style="padding:4px; text-align:center; color:green; font-weight:bold;">{c_success}</td>
+                            <td style="padding:4px; text-align:center; color:red; font-weight:bold;">{c_cancel}</td>
+                        </tr>
+                    """
         if not has_data:
-            popup_rows = "<tr><td colspan='4' style='padding:10px; text-align:center; color:#666;'>No courier details available</td></tr>"
+            popup_rows = "<tr><td colspan='4' style='padding:5px; text-align:center;'>No details.</td></tr>"
 
-        html = f"""<style>.fraud-wrapper {{ position: relative; display: inline-block; }} .fraud-wrapper .fraud-popup {{ visibility: hidden; opacity: 0; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999999; width: 320px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 0 100vw rgba(0,0,0,0.5), 0 10px 40px rgba(0,0,0,0.5); border: 1px solid #ccc; font-family: sans-serif; transition: opacity 0.2s; }} .fraud-wrapper:hover .fraud-popup {{ visibility: visible; opacity: 1; }} .popup-header {{ display: flex; background-color: #1f2937; color: #ffffff; padding: 12px 0; border-radius: 7px 7px 0 0; }} .stat-box {{ flex: 1; text-align: center; border-right: 1px solid #374151; }} .stat-box:last-child {{ border: none; }} .stat-val {{ display: block; font-size: 18px; font-weight: bold; }} .stat-lbl {{ font-size: 10px; text-transform: uppercase; opacity: 0.8; }} .popup-table {{ width: 100%; border-collapse: collapse; background-color: #ffffff; }} .popup-table th {{ background-color: #f3f4f6; color: #374151; font-size: 11px; padding: 8px; text-align: center; border-bottom: 1px solid #e5e7eb; }} .popup-table td {{ font-size: 12px; color: #000000; }} .popup-footer {{ padding: 8px; text-align: center; font-size: 10px; color: #6b7280; background: #f9fafb; border-radius: 0 0 7px 7px; }}</style><div class="fraud-wrapper">{badge_html}<div class="fraud-popup"><div class="popup-header"><div class="stat-box"><span class="stat-val">{total}</span><span class="stat-lbl">Total</span></div><div class="stat-box"><span class="stat-val" style="color:#4ade80;">{success}</span><span class="stat-lbl">Success</span></div><div class="stat-box"><span class="stat-val" style="color:#f87171;">{canceled}</span><span class="stat-lbl">Cancel</span></div></div><table class="popup-table"><thead><tr><th style="text-align:left; padding-left:12px;">Courier</th><th>Total</th><th>Done</th><th>Cancel</th></tr></thead><tbody>{popup_rows}</tbody></table><div class="popup-footer">Source: OneCodeSoft Database</div></div></div>"""
+        if cancel_rate > 30:
+            badge = f'<div style="background:#ffebee; color:#c62828; padding:2px 6px; border-radius:10px; border:1px solid #c62828; font-weight:bold; font-size:10px; cursor:pointer; display:inline-block;">⚠️ Risky ({int(cancel_rate)}%)</div>'
+        else:
+            badge = f'<div style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:10px; border:1px solid #2e7d32; font-weight:bold; font-size:10px; cursor:pointer; display:inline-block;">✅ Safe ({int(success_rate)}%)</div>'
+
+        html = f"""
+        <style>
+            .fraud-wrapper {{ position: relative; display: inline-block; }}
+            .fraud-wrapper .fraud-popup {{ 
+                visibility: hidden; opacity: 0; position: fixed; 
+                top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                z-index: 999999; width: 300px; background: #fff; 
+                border-radius: 8px; box-shadow: 0 0 0 100vw rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.5); 
+                border: 1px solid #ccc; transition: 0.2s; 
+            }}
+            .fraud-wrapper:hover .fraud-popup {{ visibility: visible; opacity: 1; }}
+            .popup-table {{ width: 100%; border-collapse: collapse; font-size:11px; }}
+            .popup-table th {{ background: #f3f4f6; padding: 5px; text-align: center; }}
+        </style>
+        <div class="fraud-wrapper">
+            {badge}
+            <div class="fraud-popup">
+                <div style="background:#333; color:#fff; padding:8px; border-radius:6px 6px 0 0; display:flex; text-align:center;">
+                    <div style="flex:1;">Total: {total}</div>
+                    <div style="flex:1; color:#4ade80;">Success: {success}</div>
+                    <div style="flex:1; color:#f87171;">Cancel: {canceled}</div>
+                </div>
+                <table class="popup-table">
+                    <thead><tr><th style="text-align:left;">Courier</th><th>Total</th><th>Ok</th><th>X</th></tr></thead>
+                    <tbody>{popup_rows}</tbody>
+                </table>
+            </div>
+        </div>
+        """
         return mark_safe(html)
 
-    fraud_check_badge.short_description = "Reliability"
-    fraud_check_badge.allow_tags = True
-
-    # --- FEATURE 2: Detail Report uses Cache ---
     def fraud_report_detail(self, obj):
         if not obj.phone: return "Phone number missing"
         data = obj.fraud_report_data
@@ -204,9 +396,8 @@ class OrderAdmin(admin.ModelAdmin):
             if data and "total_parcel" in data:
                 obj.fraud_report_data = data
                 obj.save(update_fields=['fraud_report_data'])
-
         if not data or "error" in data: return "No data available."
-
+        
         try:
             total_p = int(float(data.get("total_parcel", 0)))
             success_p = int(float(data.get("success_parcel", 0)))
@@ -229,41 +420,40 @@ class OrderAdmin(admin.ModelAdmin):
         table = f"""<div style="max-width: 800px; margin-top:10px;"><div style="display: flex; gap: 15px; margin-bottom: 20px;"><div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; flex: 1; text-align: center;"><h3 style="margin: 0; color: #166534; font-size: 20px;">{total_p}</h3><p style="margin: 0; color: #15803d; font-size: 12px;">মোট অর্ডার</p></div><div style="background: #ecfccb; border: 1px solid #d9f99d; padding: 15px; border-radius: 8px; flex: 1; text-align: center;"><h3 style="margin: 0; color: #3f6212; font-size: 20px;">{success_p}</h3><p style="margin: 0; color: #4d7c0f; font-size: 12px;">সফল ডেলিভারি</p></div><div style="background: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; flex: 1; text-align: center;"><h3 style="margin: 0; color: #991b1b; font-size: 20px;">{cancel_p}</h3><p style="margin: 0; color: #b91c1c; font-size: 12px;">মোট বাতিল</p></div></div><div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;"><table style="width: 100%; border-collapse: collapse; font-size: 13px;"><thead><tr style="background-color: #064e3b; color: white;"><th style="padding: 10px; text-align: left;">কুরিয়ার</th><th style="padding: 10px; text-align: center;">মোট</th><th style="padding: 10px; text-align: center;">সফল</th><th style="padding: 10px; text-align: center;">বাতিল</th><th style="padding: 10px; text-align: center;">রেট</th></tr></thead><tbody style="background: white;">{rows}</tbody></table></div><div style="margin-top: 10px; padding: 10px; background: #f3f4f6; border-radius: 6px; text-align: center; font-size: 12px;">Status: <strong>{status}</strong> | Score: <strong>{score}</strong></div></div>"""
         return mark_safe(table)
 
-    @admin.action(description="Check Fraud Status for selected orders")
+    fraud_report_detail.short_description = "Fraud Check Report"
+    fraud_report_detail.allow_tags = True
+
+    @admin.action(description="Check Fraud Status")
     def manual_check_fraud_action(self, request, queryset):
         count = 0
-        updated_count = 0
         for order in queryset:
-            count += 1
             if not order.fraud_report_data:
                 data = get_customer_fraud_report(order.phone)
                 if data and "total_parcel" in data:
                     order.fraud_report_data = data
                     order.save(update_fields=['fraud_report_data'])
-                    updated_count += 1
-        messages.success(request, f"Checked {count} orders. Updated API data for {updated_count} orders.")
+                    count += 1
+        messages.success(request, f"Updated {count} orders.")
 
-    @admin.action(description="Send selected orders to Steadfast")
+    @admin.action(description="Send to Steadfast")
     def send_to_steadfast_action(self, request, queryset):
-        success_count = 0
-        fail_count = 0
+        s = 0
+        f = 0
         for order in queryset:
             ok, info = send_order_to_steadfast(order)
-            if ok: success_count += 1
-            else:
-                fail_count += 1
-                messages.error(request, f"Order #{order.id} → Steadfast এ পাঠানো যায়নি: {info}")
-        if success_count: messages.success(request, f"{success_count}টি order সফলভাবে Steadfast-এ পাঠানো হয়েছে।")
-        if not success_count and not fail_count: messages.info(request, "কোনো order নির্বাচন করা হয়নি।")
+            if ok: s += 1
+            else: 
+                f += 1
+                messages.error(request, f"Order #{order.id}: {info}")
+        if s: messages.success(request, f"{s} orders sent.")
 
-    @admin.action(description="Update Steadfast delivery status")
+    @admin.action(description="Update Steadfast Status")
     def update_steadfast_status_action(self, request, queryset):
-        updated = 0
+        u = 0
         for order in queryset:
-            ok, info = refresh_steadfast_status(order)
-            if ok: updated += 1
-            else: messages.warning(request, f"Order #{order.id} → Steadfast status আপডেট হয়নি: {info}")
-        if updated: messages.success(request, f"{updated}টি order-এর Steadfast status রিফ্রেশ করা হয়েছে।")
+            ok, _ = refresh_steadfast_status(order)
+            if ok: u += 1
+        messages.success(request, f"Updated {u} orders.")
 
 
 @admin.register(OrderItem)
