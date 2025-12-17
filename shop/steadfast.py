@@ -4,20 +4,38 @@ from typing import Tuple, Any
 import requests
 from django.conf import settings
 
-from .models import Order
+from .models import Order, SiteSettings
 
 logger = logging.getLogger(__name__)
 
 
-def _headers():
+def get_steadfast_config():
+    """
+    ডাটাবেস থেকে SiteSettings অবজেক্ট এবং API ক্রেডেনশিয়ালস রিটার্ন করে।
+    """
+    config = SiteSettings.objects.first()
+    if not config:
+        return None, None, "Site Settings not found in Admin Panel."
+    
+    api_key = config.steadfast_api_key
+    secret_key = config.steadfast_secret_key
+    
+    if not api_key or not secret_key:
+        return None, None, "Steadfast API Key or Secret Key is missing in Admin -> Site Settings."
+        
+    return api_key, secret_key, None
+
+
+def _headers(api_key, secret_key):
     return {
-        "Api-Key": settings.STEADFAST_API_KEY,
-        "Secret-Key": settings.STEADFAST_SECRET_KEY,
+        "Api-Key": api_key,
+        "Secret-Key": secret_key,
         "Content-Type": "application/json",
     }
 
 
 def _base_url():
+    # Base URL সাধারণত চেঞ্জ হয় না, তাই এটি settings বা hardcode রাখা যায়
     return getattr(
         settings,
         "STEADFAST_BASE_URL",
@@ -28,27 +46,21 @@ def _base_url():
 def send_order_to_steadfast(order: Order) -> Tuple[bool, Any]:
     """
     Single order -> Steadfast /create_order
-
-    success হলে:
-      - steadfast_invoice
-      - steadfast_consignment_id
-      - steadfast_tracking_code
-      - steadfast_status
-    ফিল্ডগুলো আপডেট করে।
     """
+    
+    # [NEW] ডাটাবেস থেকে ক্রেডেনশিয়ালস চেক
+    api_key, secret_key, error_msg = get_steadfast_config()
+    if error_msg:
+        return False, error_msg
 
-    if not settings.STEADFAST_API_KEY or not settings.STEADFAST_SECRET_KEY:
-        return False, "STEADFAST_API_KEY / STEADFAST_SECRET_KEY সেট করা নেই"
-
-    # আগেই consignment থাকলে আবার না পাঠাতে চাইলে:
+    # আগেই consignment থাকলে চেক
     if order.steadfast_consignment_id:
-        return False, "এই order আগেই Steadfast-এ পাঠানো হয়েছে"
+        return False, "এই order আগেই Steadfast-এ পাঠানো হয়েছে"
 
-    # invoice uniq হওয়া দরকার
     invoice = f"ORD-{order.id}"
     order_total = float(order.get_total_cost())
 
-    # description: "Product A x2, Product B x1"
+    # description
     item_desc_parts = [
         f"{item.product.name} x{item.quantity}" for item in order.items.all()
     ]
@@ -60,14 +72,15 @@ def send_order_to_steadfast(order: Order) -> Tuple[bool, Any]:
         "recipient_phone": order.phone,
         "recipient_address": order.address,
         "cod_amount": order_total,
-        "note": "",
+        "note": f"Area: {order.delivery_area}", 
         "item_description": item_description,
     }
 
     url = f"{_base_url()}/create_order"
 
     try:
-        response = requests.post(url, json=payload, headers=_headers(), timeout=15)
+        # এখানে ডাটাবেস থেকে পাওয়া key গুলো ব্যবহার করা হচ্ছে
+        response = requests.post(url, json=payload, headers=_headers(api_key, secret_key), timeout=15)
     except Exception as e:
         logger.exception("Error calling Steadfast create_order")
         return False, f"Request error: {e}"
@@ -77,7 +90,6 @@ def send_order_to_steadfast(order: Order) -> Tuple[bool, Any]:
     except ValueError:
         return False, f"Invalid JSON from Steadfast: {response.text[:200]}"
 
-    # ডকে বলা আছে: success -> status: 200 এবং consignment object ফিরে আসে।
     if response.status_code != 200 or data.get("status") != 200:
         return False, data
 
@@ -101,14 +113,14 @@ def send_order_to_steadfast(order: Order) -> Tuple[bool, Any]:
 
 def refresh_steadfast_status(order: Order) -> Tuple[bool, Any]:
     """
-    Steadfast থেকে latest delivery_status এনে
-    order.steadfast_status আপডেট করে।
+    Steadfast থেকে latest delivery_status এনে আপডেট করে।
     """
+    
+    # [NEW] ক্রেডেনশিয়ালস চেক
+    api_key, secret_key, error_msg = get_steadfast_config()
+    if error_msg:
+        return False, error_msg
 
-    if not settings.STEADFAST_API_KEY or not settings.STEADFAST_SECRET_KEY:
-        return False, "STEADFAST_API_KEY / STEADFAST_SECRET_KEY সেট করা নেই"
-
-    # priority: consignment_id -> invoice -> tracking_code
     if order.steadfast_consignment_id:
         path = f"/status_by_cid/{order.steadfast_consignment_id}"
     elif order.steadfast_invoice:
@@ -116,12 +128,12 @@ def refresh_steadfast_status(order: Order) -> Tuple[bool, Any]:
     elif order.steadfast_tracking_code:
         path = f"/status_by_trackingcode/{order.steadfast_tracking_code}"
     else:
-        return False, "এই order Steadfast-এ এখনও পাঠানো হয়নি"
+        return False, "এই order Steadfast-এ এখনও পাঠানো হয়নি"
 
     url = f"{_base_url()}{path}"
 
     try:
-        response = requests.get(url, headers=_headers(), timeout=15)
+        response = requests.get(url, headers=_headers(api_key, secret_key), timeout=15)
     except Exception as e:
         logger.exception("Error calling Steadfast status api")
         return False, f"Request error: {e}"

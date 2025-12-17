@@ -228,7 +228,7 @@ class CartItem(models.Model):
 
 
 # ===============================
-# [NEW] DYNAMIC DELIVERY OPTIONS
+# DYNAMIC DELIVERY OPTIONS
 # ===============================
 class DeliveryOption(models.Model):
     location = models.CharField(max_length=100, help_text="e.g. Inside Dhaka, Outside Dhaka")
@@ -241,7 +241,7 @@ class DeliveryOption(models.Model):
 
 
 # ===============================
-# ORDER MODEL (Updated)
+# ORDER MODEL
 # ===============================
 class Order(models.Model):
     
@@ -270,7 +270,7 @@ class Order(models.Model):
     phone = models.CharField(max_length=20)
     address = models.TextField()
 
-    # [UPDATED] Delivery area is now stored as string, charge as Decimal
+    # Delivery Info
     delivery_area = models.CharField(max_length=100, help_text="Selected delivery location name")
     delivery_charge = models.DecimalField(max_digits=6, decimal_places=2, default=0)
 
@@ -288,7 +288,7 @@ class Order(models.Model):
     paid = models.BooleanField(default=False)
     transaction_id = models.CharField(max_length=200, blank=True)
 
-    # -------- Steadfast & Fraud Check Fields (PRESERVED) --------
+    # -------- Steadfast & Fraud Check Fields --------
     steadfast_invoice = models.CharField(max_length=100, blank=True)
     steadfast_consignment_id = models.CharField(max_length=50, blank=True)
     steadfast_tracking_code = models.CharField(max_length=50, blank=True)
@@ -364,6 +364,19 @@ class SiteSettings(models.Model):
     twitter = models.URLField(blank=True)
     
     footer_text = models.CharField(max_length=255, blank=True, default="All Rights Reserved.")
+
+    # --- [NEW] Steadfast API Configuration ---
+    # ক্লায়েন্ট যাতে সরাসরি অ্যাডমিন প্যানেল থেকে এগুলো সেট করতে পারে
+    steadfast_api_key = models.CharField(
+        max_length=255, 
+        blank=True, 
+        help_text="Enter your API Key from Steadfast Merchant Panel"
+    )
+    steadfast_secret_key = models.CharField(
+        max_length=255, 
+        blank=True, 
+        help_text="Enter your Secret Key from Steadfast Merchant Panel"
+    )
 
     class Meta:
         verbose_name = "Site Settings"
