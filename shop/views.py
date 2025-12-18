@@ -1,4 +1,6 @@
 import json
+import re  # [NEW] For Phone Regex
+from datetime import timedelta # [NEW] For time calculation
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, logout
@@ -6,6 +8,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone # [NEW] For current time
 
 from .models import (
     Category,
@@ -16,9 +19,9 @@ from .models import (
     Order,
     OrderItem,
     ProductVariant,
-    DeliveryOption, # [NEW]
+    DeliveryOption,
 )
-from .forms import RegistrationForm, RatingForm, CheckoutForm
+from .forms import RegistrationForm, RatingForm
 from .utils import generate_sslcommerz_payment, send_order_confirmation_email
 
 
@@ -306,7 +309,7 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (UPDATED FOR DYNAMIC DELIVERY)
+# CHECKOUT (UPDATED WITH VALIDATIONS)
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -324,6 +327,24 @@ def checkout(request):
     product_for_buy_now = None
     variant_for_buy_now = None
 
+    # Helper classes for Buy Now Cart
+    class BuyNowItem:
+        def __init__(self, product, variant=None):
+            self.product = product
+            self.variant = variant
+            self.quantity = 1
+        def get_unit_price(self):
+            if self.variant: return self.variant.get_price()
+            return self.product.price
+        @property
+        def get_cost(self): return self.get_unit_price() * self.quantity
+
+    class BuyNowCart:
+        def __init__(self, product, variant=None):
+            self.items = [BuyNowItem(product, variant)]
+        def get_total_price(self): return self.items[0].get_cost
+        def get_total_items(self): return 1
+
     if buy_now_id:
         product_for_buy_now = get_object_or_404(Product, id=buy_now_id, available=True)
         if buy_now_variant_id:
@@ -333,23 +354,6 @@ def checkout(request):
                 )
             except ProductVariant.DoesNotExist:
                 variant_for_buy_now = None
-
-        class BuyNowItem:
-            def __init__(self, product, variant=None):
-                self.product = product
-                self.variant = variant
-                self.quantity = 1
-            def get_unit_price(self):
-                if self.variant: return self.variant.get_price()
-                return self.product.price
-            @property
-            def get_cost(self): return self.get_unit_price() * self.quantity
-
-        class BuyNowCart:
-            def __init__(self, product, variant=None):
-                self.items = [BuyNowItem(product, variant)]
-            def get_total_price(self): return self.items[0].get_cost
-            def get_total_items(self): return 1
 
         cart = BuyNowCart(product_for_buy_now, variant_for_buy_now)
         is_buy_now = True
@@ -362,10 +366,8 @@ def checkout(request):
 
     # --- Fetch Data ---
     subtotal = cart.get_total_price()
-    # [NEW] Fetch dynamic options
     delivery_options = DeliveryOption.objects.filter(is_active=True)
     
-    # Default preview if user hasn't selected
     delivery_preview = 0 
     if delivery_options.exists():
         delivery_preview = delivery_options.first().price
@@ -373,12 +375,67 @@ def checkout(request):
     total_preview = subtotal + delivery_preview
 
     if request.method == "POST":
-        # Form manual handling for better control over delivery_option
+        # 1. Collect Data
         name = request.POST.get("name")
-        phone = request.POST.get("phone")
+        phone = request.POST.get("phone", "").strip() # Remove spaces
         address = request.POST.get("address")
-        delivery_option_id = request.POST.get("delivery_area") # from <select>
+        delivery_option_id = request.POST.get("delivery_area")
         payment_method = request.POST.get("payment_method")
+
+        # --------------------------------------------------------
+        # [START] SECURITY & VALIDATION LOGIC
+        # --------------------------------------------------------
+
+        # A. Strict Mobile Number Validation (Regex)
+        # ^01 means start with 01, [3-9] means 3rd digit can be 3 to 9, \d{8} means exact 8 digits after that.
+        phone_pattern = r'^01[3-9]\d{8}$'
+        if not re.match(phone_pattern, phone):
+            messages.error(request, "আপনি ভুল মোবাইল নাম্বার লিখেছেন। অনুগ্রহ করে আপনার ১১ ডিজিটের সঠিক মোবাইল নাম্বারটি লিখুন")
+            return render(request, "shop/checkout.html", {
+                "cart": cart, "subtotal": subtotal, "delivery_options": delivery_options,
+                "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
+            })
+
+        # B. 60 Minutes Order Cooldown Check
+        # If user ordered in last 60 minutes, block them.
+        one_hour_ago = timezone.now() - timedelta(minutes=60)
+        recent_order_exists = Order.objects.filter(phone=phone, created__gte=one_hour_ago).exists()
+        
+        if recent_order_exists:
+            messages.error(request, "অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন। আপনি সম্প্রতি একটি অর্ডার করেছেন।")
+            return render(request, "shop/checkout.html", {
+                "cart": cart, "subtotal": subtotal, "delivery_options": delivery_options,
+                "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
+            })
+
+        # C. Same Product 24-Hour Restriction
+        # Check if customer ordered ANY of the current products in the last 24 hours.
+        current_product_ids = []
+        if is_buy_now:
+            current_product_ids.append(product_for_buy_now.id)
+        else:
+            current_product_ids = [item.product.id for item in cart.items]
+        
+        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
+        past_24h_orders = Order.objects.filter(phone=phone, created__gte=twenty_four_hours_ago)
+        
+        duplicate_found = False
+        for old_order in past_24h_orders:
+            # Check items in old order
+            if old_order.items.filter(product_id__in=current_product_ids).exists():
+                duplicate_found = True
+                break
+        
+        if duplicate_found:
+            messages.error(request, "আপনি এই পণ্যটি অলরেডি অর্ডার করেছেন। নতুন অর্ডার করতে চাইলে অনুগ্রহ করে ২৪ ঘন্টা পর চেষ্টা করুন।")
+            return render(request, "shop/checkout.html", {
+                "cart": cart, "subtotal": subtotal, "delivery_options": delivery_options,
+                "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
+            })
+
+        # --------------------------------------------------------
+        # [END] VALIDATION LOGIC
+        # --------------------------------------------------------
 
         # Find selected delivery option
         try:
@@ -435,14 +492,13 @@ def checkout(request):
         request.session["order_id"] = order.id
         return redirect("shop:payment_process")
 
-    # [UPDATED CONTEXT]
     return render(
         request,
         "shop/checkout.html",
         {
             "cart": cart,
             "subtotal": subtotal,
-            "delivery_options": delivery_options, # Pass options to template
+            "delivery_options": delivery_options,
             "delivery_preview": delivery_preview,
             "total_preview": total_preview,
             "is_buy_now": is_buy_now,

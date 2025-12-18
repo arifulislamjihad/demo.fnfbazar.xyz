@@ -3,8 +3,8 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.db import models
 from django.forms import CheckboxSelectMultiple
-from django.utils import timezone            # [NEW] Time calculation
-from django.utils.timesince import timesince # [NEW] Time ago feature
+from django.utils import timezone
+from django.utils.timesince import timesince
 
 from .models import (
     Category,
@@ -108,7 +108,7 @@ class OrderAdmin(admin.ModelAdmin):
         "payment_status_display", 
         "status_label",           
         "steadfast_info", 
-        "created_at_display", # [UPDATED] Date & Time Column
+        "created_at_display",
     )
     
     list_filter = (
@@ -139,12 +139,55 @@ class OrderAdmin(admin.ModelAdmin):
         return format_html('<b>#{}</b>', obj.id)
     order_id_display.short_description = "ID"
 
-    # --- 2. Customer Info ---
+    # --- 2. Customer Info (Updated with Product Names in History) ---
     def customer_info_display(self, obj):
         badge = self.fraud_check_badge(obj)
         addr = obj.address
         if len(addr) > 40:
             addr = addr[:40] + "..."
+
+        # [UPDATED] Previous Order History Feature
+        history_html = ""
+        if obj.phone:
+            # Get last 3 orders excluding current one
+            previous_orders = Order.objects.filter(phone=obj.phone).exclude(id=obj.id).order_by('-created')[:3]
+            
+            if previous_orders.exists():
+                history_rows = ""
+                for po in previous_orders:
+                    date_str = po.created.strftime("%d %b")
+                    
+                    # Status Color
+                    s_color = "gray"
+                    if po.status == 'delivered': s_color = "green"
+                    elif po.status == 'canceled': s_color = "red"
+                    
+                    # Get Product Names
+                    products = po.items.all()[:2] # Get first 2 products
+                    prod_names = ", ".join([p.product.name for p in products])
+                    
+                    # Truncate long names
+                    if len(prod_names) > 25: 
+                        prod_names = prod_names[:25] + ".."
+                    
+                    history_rows += f"""
+                    <div style="font-size:10px; color:#555; border-bottom:1px solid #eee; padding:3px 0;">
+                        <span style="color:#000; font-weight:600;">#{po.id}</span>
+                        <span style="color:{s_color}; font-weight:bold; font-size:9px; text-transform:uppercase;">[{po.status}]</span>
+                        <br>
+                        <span style="color:#333;">🛒 {prod_names}</span>
+                        <span style="color:#999; float:right;">{date_str}</span>
+                    </div>
+                    """
+                
+                history_html = f"""
+                <div style="margin-top:8px; background:#fff; padding:6px; border-radius:4px; border:1px solid #d1d5db; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <div style="font-size:10px; font-weight:bold; color:#374151; border-bottom:1px solid #e5e7eb; margin-bottom:4px; padding-bottom:2px;">
+                        📜 Previous History
+                    </div>
+                    {history_rows}
+                </div>
+                """
 
         return format_html(
             """
@@ -153,12 +196,14 @@ class OrderAdmin(admin.ModelAdmin):
                 <div style="color:#555; font-size: 12px;">📞 {}</div>
                 <div style="color:#777; font-size: 11px;">📍 {}</div>
                 <div style="margin-top:4px;">{}</div>
+                {}
             </div>
             """,
             obj.name,
             obj.phone,
             addr,
-            badge
+            badge,
+            mark_safe(history_html)
         )
     customer_info_display.short_description = "Customer Details"
 
@@ -259,20 +304,14 @@ class OrderAdmin(admin.ModelAdmin):
         )
     steadfast_info.short_description = "Courier (Steadfast)"
 
-    # --- 8. Date & Time (UPDATED: Relative Time) ---
+    # --- 8. Date & Time ---
     def created_at_display(self, obj):
-        # Convert to local time (important for correct day/time)
         local_time = timezone.localtime(obj.created)
-        
-        # Formats: 17 Dec, 2025 | 03:45 PM
         date_str = local_time.strftime("%d %b, %Y")
         time_str = local_time.strftime("%I:%M %p")
-        
-        # Calculate time ago (e.g., "2 hours, 10 minutes") -> split for "2 hours"
         ago_full = timesince(local_time).split(",")[0]
         ago_str = f"{ago_full} ago"
         
-        # Style: If created within last 24 hours, make it Green/Bold
         diff = timezone.now() - obj.created
         if diff.days < 1:
             ago_style = "color:#166534; font-weight:bold;"
