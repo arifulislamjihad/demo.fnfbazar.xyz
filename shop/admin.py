@@ -1,3 +1,6 @@
+import hashlib
+import requests
+import json
 from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -23,6 +26,78 @@ from .models import (
 from .steadfast import send_order_to_steadfast, refresh_steadfast_status
 from .utils import get_customer_fraud_report
 
+
+# ============================================================
+# FACEBOOK CAPI HELPER FUNCTION (FIXED)
+# ============================================================
+def send_facebook_purchase_event(order):
+    """
+    Sends Purchase Event to Facebook Conversion API
+    """
+    config = SiteSettings.objects.first()
+    if not config or not config.facebook_pixel_id or not config.facebook_access_token:
+        return False, "FB Pixel ID or Token missing in Site Settings"
+
+    # 1. Phone Number Normalization & Hashing (FIXED)
+    # ফেইসবুক চায় নম্বরটি যেন 8801... ফরম্যাটে থাকে
+    phone = order.phone.strip()
+    if phone.startswith('0'):
+        phone = '88' + phone
+    elif not phone.startswith('88'):
+        phone = '88' + phone # Defaulting to BD if no country code
+    
+    try:
+        phone_hash = hashlib.sha256(phone.encode('utf-8')).hexdigest()
+    except:
+        phone_hash = ""
+
+    # 2. Event Data Construction
+    event_data = {
+        "event_name": "Purchase",
+        "event_time": int(timezone.now().timestamp()),
+        "action_source": "website",
+        "user_data": {
+            "ph": [phone_hash],
+        },
+        "custom_data": {
+            "currency": "BDT",
+            "value": float(order.get_total_cost()),
+            "order_id": str(order.id),
+            "content_ids": [str(item.product.id) for item in order.items.all()],
+            "content_type": "product",
+            "num_items": order.items.count()
+        }
+    }
+
+    # 3. Final Payload Construction
+    payload = {
+        "data": [event_data],
+        "access_token": config.facebook_access_token
+    }
+
+    # [FIXED] টেস্ট কোডটি এখন মেইন পে-লোডের বাইরে পাঠানো হচ্ছে
+    if config.facebook_test_event_code:
+        payload["test_event_code"] = config.facebook_test_event_code.strip()
+
+    # 4. Send Request
+    url = f"https://graph.facebook.com/v19.0/{config.facebook_pixel_id}/events"
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        res_data = response.json()
+        if response.status_code == 200:
+            return True, "Event Sent"
+        else:
+            # এরর ডিবাগ করার জন্য বিস্তারিত মেসেজ
+            error_msg = res_data.get("error", {}).get("message", "Unknown Error")
+            return False, error_msg
+    except Exception as e:
+        return False, str(e)
+
+
+# ============================================================
+# ADMIN MODELS CONFIG
+# ============================================================
 
 @admin.register(DeliveryOption)
 class DeliveryOptionAdmin(admin.ModelAdmin):
@@ -131,42 +206,90 @@ class OrderAdmin(admin.ModelAdmin):
     
     readonly_fields = ("fraud_report_detail",)
     inlines = [OrderItemInline]
-    actions = ["send_to_steadfast_action", "update_steadfast_status_action", "manual_check_fraud_action"]
+    
+    actions = [
+        "make_confirmed_action",
+        "send_to_steadfast_action", 
+        "update_steadfast_status_action", 
+        "manual_check_fraud_action"
+    ]
+    
     list_per_page = 20
+
+    # ----------------------------------------------------------------
+    # ACTION: Bulk Mark as Confirmed + Trigger FB Pixel
+    # ----------------------------------------------------------------
+    @admin.action(description="Mark selected orders as Confirmed")
+    def make_confirmed_action(self, request, queryset):
+        success_count = 0
+        fb_sent_count = 0
+        
+        for order in queryset:
+            # Only process if not already confirmed
+            if order.status != 'confirmed':
+                order.status = 'confirmed'
+                order.save() # Save status to DB
+                success_count += 1
+                
+                # Trigger Facebook Event
+                sent, _ = send_facebook_purchase_event(order)
+                if sent:
+                    fb_sent_count += 1
+        
+        if success_count > 0:
+            messages.success(request, f"{success_count} orders marked as Confirmed. ({fb_sent_count} sent to Facebook)")
+        else:
+            messages.info(request, "No eligible orders were updated.")
+
+    # ----------------------------------------------------------------
+    # SINGLE EDIT: Override Save Model to Trigger FB Pixel
+    # ----------------------------------------------------------------
+    def save_model(self, request, obj, form, change):
+        # Only proceed if editing an existing object
+        if change:
+            try:
+                old_obj = Order.objects.get(pk=obj.pk)
+                
+                # Logic: If status changed TO 'confirmed' FROM something else
+                if old_obj.status != 'confirmed' and obj.status == 'confirmed':
+                    success, msg = send_facebook_purchase_event(obj)
+                    if success:
+                        messages.success(request, f"Facebook 'Purchase' Event sent for Order #{obj.id}")
+                    else:
+                        messages.warning(request, f"Failed to send FB Event: {msg}")
+                        
+            except Order.DoesNotExist:
+                pass
+        
+        super().save_model(request, obj, form, change)
 
     # --- 1. Order ID ---
     def order_id_display(self, obj):
         return format_html('<b>#{}</b>', obj.id)
     order_id_display.short_description = "ID"
 
-    # --- 2. Customer Info (Updated with Product Names in History) ---
+    # --- 2. Customer Info (With History) ---
     def customer_info_display(self, obj):
         badge = self.fraud_check_badge(obj)
         addr = obj.address
         if len(addr) > 40:
             addr = addr[:40] + "..."
 
-        # [UPDATED] Previous Order History Feature
         history_html = ""
         if obj.phone:
-            # Get last 3 orders excluding current one
             previous_orders = Order.objects.filter(phone=obj.phone).exclude(id=obj.id).order_by('-created')[:3]
             
             if previous_orders.exists():
                 history_rows = ""
                 for po in previous_orders:
                     date_str = po.created.strftime("%d %b")
-                    
-                    # Status Color
                     s_color = "gray"
                     if po.status == 'delivered': s_color = "green"
                     elif po.status == 'canceled': s_color = "red"
+                    elif po.status == 'confirmed': s_color = "blue"
                     
-                    # Get Product Names
-                    products = po.items.all()[:2] # Get first 2 products
+                    products = po.items.all()[:2] 
                     prod_names = ", ".join([p.product.name for p in products])
-                    
-                    # Truncate long names
                     if len(prod_names) > 25: 
                         prod_names = prod_names[:25] + ".."
                     
@@ -256,6 +379,7 @@ class OrderAdmin(admin.ModelAdmin):
     def status_label(self, obj):
         colors = {
             'pending': '#f59e0b',
+            'confirmed': '#0ea5e9', # Sky Blue
             'processing': '#3b82f6',
             'shipped': '#8b5cf6',
             'delivered': '#10b981',

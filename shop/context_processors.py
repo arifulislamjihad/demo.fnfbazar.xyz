@@ -17,8 +17,8 @@ def cart_items_count(request):
 
 def site_settings(request):
     """
-    সব template এ site_settings নামে object পাঠায়,
-    যাতে logo এবং site_name সহজে ব্যবহার করা যায়।
+    সব template এ site_settings নামে object পাঠায়,
+    যাতে logo এবং site_name সহজে ব্যবহার করা যায়।
     """
     settings_obj = SiteSettings.objects.first()
     return {"site_settings": settings_obj}
@@ -26,8 +26,12 @@ def site_settings(request):
 
 def facebook_pixel(request):
     """
-    সব template এ FACEBOOK_PIXEL_ID পাঠানোর জন্য।
-    Pixel না থাকলে simply খালি string যাবে।
+    ডাটাবেস থেকে FACEBOOK_PIXEL_ID নিয়ে সব টেমপ্লেটে পাঠায়।
     """
-    pixel_id = getattr(settings, "FACEBOOK_PIXEL_ID", "")
+    config = SiteSettings.objects.first()
+    pixel_id = ""
+    
+    if config and config.facebook_pixel_id:
+        pixel_id = config.facebook_pixel_id.strip()
+        
     return {"FACEBOOK_PIXEL_ID": pixel_id}

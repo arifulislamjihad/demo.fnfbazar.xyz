@@ -252,6 +252,7 @@ class Order(models.Model):
 
     STATUS_CHOICES = (
         ("pending", "Pending"),
+        ("confirmed", "Confirmed"),
         ("processing", "Processing"),
         ("shipped", "Shipped"),
         ("delivered", "Delivered"),
@@ -365,8 +366,7 @@ class SiteSettings(models.Model):
     
     footer_text = models.CharField(max_length=255, blank=True, default="All Rights Reserved.")
 
-    # --- [NEW] Steadfast API Configuration ---
-    # ক্লায়েন্ট যাতে সরাসরি অ্যাডমিন প্যানেল থেকে এগুলো সেট করতে পারে
+    # --- Steadfast API Configuration ---
     steadfast_api_key = models.CharField(
         max_length=255, 
         blank=True, 
@@ -376,6 +376,23 @@ class SiteSettings(models.Model):
         max_length=255, 
         blank=True, 
         help_text="Enter your Secret Key from Steadfast Merchant Panel"
+    )
+
+    # --- Facebook API Configuration ---
+    facebook_pixel_id = models.CharField(
+        max_length=50, 
+        blank=True, 
+        help_text="Example: 1234567890"
+    )
+    facebook_access_token = models.TextField(
+        blank=True,
+        help_text="Long Access Token from Facebook Business Manager (Conversion API)"
+    )
+    
+    facebook_test_event_code = models.CharField(
+        max_length=50, 
+        blank=True, 
+        help_text="Only for testing. Example: TEST12345. Leave empty for live orders."
     )
 
     class Meta:

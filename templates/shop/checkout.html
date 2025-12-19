@@ -29,7 +29,8 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
                             <input type="text" name="name" required 
                                 class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-                                placeholder="Full Name">
+                                placeholder="Full Name"
+                                value="{{ user.first_name }} {{ user.last_name }}">
                         </div>
 
                         <div>
@@ -213,9 +214,21 @@
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     if (typeof fbq === 'undefined') { return; }
-    const totalEl = document.getElementById('total_display');
-    const initialTotal = totalEl ? parseFloat(totalEl.innerText) : {{ total_preview|default:"0" }};
-    fbq('track', 'InitiateCheckout', { value: initialTotal, currency: 'BDT' });
+
+    // প্রোডাক্ট আইডিগুলো কালেকশন করা হচ্ছে
+    const contentIds = [
+        {% for item in cart.items %}
+        '{{ item.product.id }}'{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    fbq('track', 'InitiateCheckout', {
+        content_ids: contentIds,
+        content_type: 'product',
+        value: {{ subtotal|floatformat:2 }}, // সাবটোটাল পাঠানো হচ্ছে
+        currency: 'BDT',
+        num_items: {{ cart.get_total_items|default:0 }}
+    });
   });
 </script>
 {% endif %}
