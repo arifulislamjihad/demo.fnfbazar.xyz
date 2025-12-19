@@ -426,7 +426,7 @@ class OrderAdmin(admin.ModelAdmin):
             obj.steadfast_consignment_id,
             track_url
         )
-    steadfast_info.short_description = "Courier (Steadfast)"
+    steadfast_info.short_description = "Courier"
 
     # --- 8. Date & Time ---
     def created_at_display(self, obj):
