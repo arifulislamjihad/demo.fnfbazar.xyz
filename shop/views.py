@@ -1,6 +1,6 @@
 import json
-import re  # [NEW] For Phone Regex
-from datetime import timedelta # [NEW] For time calculation
+import re 
+from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, authenticate, logout
@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from django.utils import timezone # [NEW] For current time
+from django.utils import timezone
 
 from .models import (
     Category,
@@ -309,7 +309,7 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (UPDATED WITH VALIDATIONS)
+# CHECKOUT (UPDATED WITH VALIDATIONS & FB TRACKING)
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -387,7 +387,6 @@ def checkout(request):
         # --------------------------------------------------------
 
         # A. Strict Mobile Number Validation (Regex)
-        # ^01 means start with 01, [3-9] means 3rd digit can be 3 to 9, \d{8} means exact 8 digits after that.
         phone_pattern = r'^01[3-9]\d{8}$'
         if not re.match(phone_pattern, phone):
             messages.error(request, "আপনি ভুল মোবাইল নাম্বার লিখেছেন। অনুগ্রহ করে আপনার ১১ ডিজিটের সঠিক মোবাইল নাম্বারটি লিখুন")
@@ -397,7 +396,6 @@ def checkout(request):
             })
 
         # B. 60 Minutes Order Cooldown Check
-        # If user ordered in last 60 minutes, block them.
         one_hour_ago = timezone.now() - timedelta(minutes=60)
         recent_order_exists = Order.objects.filter(phone=phone, created__gte=one_hour_ago).exists()
         
@@ -409,7 +407,6 @@ def checkout(request):
             })
 
         # C. Same Product 24-Hour Restriction
-        # Check if customer ordered ANY of the current products in the last 24 hours.
         current_product_ids = []
         if is_buy_now:
             current_product_ids.append(product_for_buy_now.id)
@@ -421,7 +418,6 @@ def checkout(request):
         
         duplicate_found = False
         for old_order in past_24h_orders:
-            # Check items in old order
             if old_order.items.filter(product_id__in=current_product_ids).exists():
                 duplicate_found = True
                 break
@@ -457,6 +453,18 @@ def checkout(request):
             payment_method=payment_method,
             status="pending"
         )
+
+        # [NEW] Capture Facebook Tracking Cookies
+        # Facebook creates cookies named _fbp and _fbc in the user's browser
+        fbp_cookie = request.COOKIES.get('_fbp')
+        fbc_cookie = request.COOKIES.get('_fbc')
+        
+        if fbp_cookie:
+            order.fbp = fbp_cookie
+        if fbc_cookie:
+            order.fbc = fbc_cookie
+        
+        order.save() # Update the order with tracking data
 
         # Move items to order
         if is_buy_now:

@@ -302,6 +302,11 @@ class Order(models.Model):
     )
     # ------------------------------------------------
 
+    # [NEW] -------- Facebook Tracking Fields --------
+    fbp = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Browser ID")
+    fbc = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Click ID")
+    # ------------------------------------------------
+
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
