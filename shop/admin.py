@@ -28,7 +28,7 @@ from .utils import get_customer_fraud_report
 
 
 # ============================================================
-# FACEBOOK CAPI HELPER FUNCTION (UPGRADED FOR SALES CAMPAIGN)
+# FACEBOOK CAPI HELPER FUNCTION (UPGRADED)
 # ============================================================
 def send_facebook_purchase_event(order):
     """
@@ -36,7 +36,7 @@ def send_facebook_purchase_event(order):
     """
     config = SiteSettings.objects.first()
     if not config or not config.facebook_pixel_id or not config.facebook_access_token:
-        return False, "FB Pixel ID or Token missing in Site Settings"
+        return False, "FB Config Missing"
 
     # 1. Phone Number Normalization & Hashing
     phone = str(order.phone).strip()
@@ -50,33 +50,45 @@ def send_facebook_purchase_event(order):
     except:
         phone_hash = ""
 
-    # [NEW] Name & Info Hashing (Sales Campaign Tracking Fix)
-    fn_hash = ""
-    ln_hash = ""
-    country_hash = hashlib.sha256("bd".encode('utf-8')).hexdigest() # Bangladesh Default
-    
+    # [NEW] Advanced Matching Data Construction
+    user_data = {
+        "ph": [phone_hash],
+    }
+
+    # Add External ID (Order ID) - Critical for Sales Campaign
+    user_data["external_id"] = [str(order.id)]
+
+    # Add Country Hash (Default BD)
     try:
-        # নাম ভেঙে First Name ও Last Name আলাদা করা হচ্ছে
+        country_hash = hashlib.sha256("bd".encode('utf-8')).hexdigest()
+        user_data["country"] = [country_hash]
+    except:
+        pass
+
+    # Add Name Hashing (First Name & Last Name)
+    try:
         name_parts = order.name.strip().split()
         if len(name_parts) > 0:
             fn_hash = hashlib.sha256(name_parts[0].lower().encode('utf-8')).hexdigest()
+            user_data["fn"] = [fn_hash]
         if len(name_parts) > 1:
             ln_hash = hashlib.sha256(name_parts[-1].lower().encode('utf-8')).hexdigest()
+            user_data["ln"] = [ln_hash]
     except:
         pass
+
+    # [CRITICAL] Add Browser ID (fbp) & Click ID (fbc) from Database
+    if order.fbp:
+        user_data["fbp"] = order.fbp
+    if order.fbc:
+        user_data["fbc"] = order.fbc
 
     # 2. Event Data Construction
     event_data = {
         "event_name": "Purchase",
         "event_time": int(timezone.now().timestamp()),
         "action_source": "website",
-        "user_data": {
-            "ph": [phone_hash],
-            "fn": [fn_hash] if fn_hash else [],  # First Name Hash
-            "ln": [ln_hash] if ln_hash else [],  # Last Name Hash
-            "country": [country_hash],           # Country Hash
-            "external_id": [str(order.id)]       # Order ID (Matching এর জন্য জরুরি)
-        },
+        "user_data": user_data,
         "custom_data": {
             "currency": "BDT",
             "value": float(order.get_total_cost()),

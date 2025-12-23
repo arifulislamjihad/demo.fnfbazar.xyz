@@ -303,6 +303,7 @@ class Order(models.Model):
     # ------------------------------------------------
 
     # [NEW] -------- Facebook Tracking Fields --------
+    # এগুলো Sales Campaign এর জন্য অত্যন্ত জরুরি
     fbp = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Browser ID")
     fbc = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Click ID")
     # ------------------------------------------------

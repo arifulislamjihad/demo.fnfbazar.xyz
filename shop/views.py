@@ -309,7 +309,7 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (UPDATED WITH VALIDATIONS & FB TRACKING)
+# CHECKOUT (UPDATED WITH VALIDATIONS & FB COOKIE CAPTURE)
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -464,7 +464,7 @@ def checkout(request):
         if fbc_cookie:
             order.fbc = fbc_cookie
         
-        order.save() # Update the order with tracking data
+        order.save() # Save order with tracking data
 
         # Move items to order
         if is_buy_now:
