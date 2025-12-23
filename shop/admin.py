@@ -28,7 +28,7 @@ from .utils import get_customer_fraud_report
 
 
 # ============================================================
-# FACEBOOK CAPI HELPER FUNCTION (UPGRADED FOR SALES MATCHING)
+# FACEBOOK CAPI HELPER FUNCTION (UPGRADED FOR SALES CAMPAIGN)
 # ============================================================
 def send_facebook_purchase_event(order):
     """
@@ -50,11 +50,13 @@ def send_facebook_purchase_event(order):
     except:
         phone_hash = ""
 
-    # [NEW] Name Hashing (Improves Matching Quality for Sales Campaign)
-    # নামের প্রথম ও শেষ অংশ আলাদা করে হ্যাশ করা হচ্ছে
+    # [NEW] Name & Info Hashing (Sales Campaign Tracking Fix)
     fn_hash = ""
     ln_hash = ""
+    country_hash = hashlib.sha256("bd".encode('utf-8')).hexdigest() # Bangladesh Default
+    
     try:
+        # নাম ভেঙে First Name ও Last Name আলাদা করা হচ্ছে
         name_parts = order.name.strip().split()
         if len(name_parts) > 0:
             fn_hash = hashlib.sha256(name_parts[0].lower().encode('utf-8')).hexdigest()
@@ -63,21 +65,17 @@ def send_facebook_purchase_event(order):
     except:
         pass
 
-    # [NEW] Country Hash (Assuming BD for better matching)
-    country_hash = hashlib.sha256("bd".encode('utf-8')).hexdigest()
-
     # 2. Event Data Construction
     event_data = {
         "event_name": "Purchase",
         "event_time": int(timezone.now().timestamp()),
-        "event_id": str(order.id), # [NEW] Helps Facebook deduplicate events
         "action_source": "website",
         "user_data": {
             "ph": [phone_hash],
-            "fn": [fn_hash] if fn_hash else [],  # First Name
-            "ln": [ln_hash] if ln_hash else [],  # Last Name
-            "country": [country_hash],           # Country
-            "external_id": [str(order.id)]       # Order ID for tracking
+            "fn": [fn_hash] if fn_hash else [],  # First Name Hash
+            "ln": [ln_hash] if ln_hash else [],  # Last Name Hash
+            "country": [country_hash],           # Country Hash
+            "external_id": [str(order.id)]       # Order ID (Matching এর জন্য জরুরি)
         },
         "custom_data": {
             "currency": "BDT",
@@ -306,11 +304,17 @@ class OrderAdmin(admin.ModelAdmin):
                     elif po.status == 'canceled': s_color = "red"
                     elif po.status == 'confirmed': s_color = "blue"
                     
+                    products = po.items.all()[:2] 
+                    prod_names = ", ".join([p.product.name for p in products])
+                    if len(prod_names) > 25: 
+                        prod_names = prod_names[:25] + ".."
+                    
                     history_rows += f"""
                     <div style="font-size:10px; color:#555; border-bottom:1px solid #eee; padding:3px 0;">
                         <span style="color:#000; font-weight:600;">#{po.id}</span>
                         <span style="color:{s_color}; font-weight:bold; font-size:9px; text-transform:uppercase;">[{po.status}]</span>
                         <br>
+                        <span style="color:#333;">🛒 {prod_names}</span>
                         <span style="color:#999; float:right;">{date_str}</span>
                     </div>
                     """
