@@ -20,9 +20,10 @@ from .models import (
     OrderItem,
     ProductVariant,
     DeliveryOption,
+    SiteSettings, # [NEW]
 )
 from .forms import RegistrationForm, RatingForm
-from .utils import generate_sslcommerz_payment, send_order_confirmation_email
+from .utils import generate_sslcommerz_payment, send_order_confirmation_email, send_facebook_purchase_event
 
 
 # ============================================================
@@ -309,7 +310,7 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (UPDATED WITH VALIDATIONS & FB COOKIE CAPTURE)
+# CHECKOUT (UPDATED WITH AUTOMATIC PIXEL TRIGGER)
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -327,7 +328,6 @@ def checkout(request):
     product_for_buy_now = None
     variant_for_buy_now = None
 
-    # Helper classes for Buy Now Cart
     class BuyNowItem:
         def __init__(self, product, variant=None):
             self.product = product
@@ -377,16 +377,12 @@ def checkout(request):
     if request.method == "POST":
         # 1. Collect Data
         name = request.POST.get("name")
-        phone = request.POST.get("phone", "").strip() # Remove spaces
+        phone = request.POST.get("phone", "").strip() 
         address = request.POST.get("address")
         delivery_option_id = request.POST.get("delivery_area")
         payment_method = request.POST.get("payment_method")
 
-        # --------------------------------------------------------
-        # [START] SECURITY & VALIDATION LOGIC
-        # --------------------------------------------------------
-
-        # A. Strict Mobile Number Validation (Regex)
+        # [VALIDATION]
         phone_pattern = r'^01[3-9]\d{8}$'
         if not re.match(phone_pattern, phone):
             messages.error(request, "আপনি ভুল মোবাইল নাম্বার লিখেছেন। অনুগ্রহ করে আপনার ১১ ডিজিটের সঠিক মোবাইল নাম্বারটি লিখুন")
@@ -395,7 +391,6 @@ def checkout(request):
                 "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
             })
 
-        # B. 60 Minutes Order Cooldown Check
         one_hour_ago = timezone.now() - timedelta(minutes=60)
         recent_order_exists = Order.objects.filter(phone=phone, created__gte=one_hour_ago).exists()
         
@@ -406,7 +401,6 @@ def checkout(request):
                 "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
             })
 
-        # C. Same Product 24-Hour Restriction
         current_product_ids = []
         if is_buy_now:
             current_product_ids.append(product_for_buy_now.id)
@@ -429,11 +423,6 @@ def checkout(request):
                 "delivery_preview": delivery_preview, "total_preview": total_preview, "is_buy_now": is_buy_now
             })
 
-        # --------------------------------------------------------
-        # [END] VALIDATION LOGIC
-        # --------------------------------------------------------
-
-        # Find selected delivery option
         try:
             selected_option = DeliveryOption.objects.get(id=delivery_option_id)
             d_area_name = selected_option.location
@@ -454,19 +443,21 @@ def checkout(request):
             status="pending"
         )
 
-        # [NEW] Capture Facebook Tracking Cookies
-        # Facebook creates cookies named _fbp and _fbc in the user's browser
+        # [NEW] Capture Info
         fbp_cookie = request.COOKIES.get('_fbp')
         fbc_cookie = request.COOKIES.get('_fbc')
+        if fbp_cookie: order.fbp = fbp_cookie
+        if fbc_cookie: order.fbc = fbc_cookie
         
-        if fbp_cookie:
-            order.fbp = fbp_cookie
-        if fbc_cookie:
-            order.fbc = fbc_cookie
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for: ip = x_forwarded_for.split(',')[0]
+        else: ip = request.META.get('REMOTE_ADDR')
         
-        order.save() # Save order with tracking data
+        order.ip_address = ip
+        order.user_agent = request.META.get('HTTP_USER_AGENT', '')
+        order.save() 
 
-        # Move items to order
+        # Add Items
         if is_buy_now:
             unit_price = variant_for_buy_now.get_price() if variant_for_buy_now else product_for_buy_now.price
             OrderItem.objects.create(
@@ -488,11 +479,15 @@ def checkout(request):
                     quantity=item.quantity,
                     price=unit_price,
                 )
-            # Clear Cart
             if request.user.is_authenticated:
                 CartItem.objects.filter(cart__user=request.user).delete()
             else:
                 request.session["guest_cart"] = {}
+
+        # [NEW] CHECK PIXEL MODE & TRIGGER IF AUTOMATIC
+        config = SiteSettings.objects.first()
+        if config and config.facebook_pixel_mode == 'automatic':
+            send_facebook_purchase_event(order)
 
         if order.payment_method == "cod":
             return render(request, "shop/payment_success.html", {"order": order})

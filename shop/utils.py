@@ -1,11 +1,10 @@
 import json
-import time
 import hashlib
 import requests
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
-
+from django.utils import timezone
 
 # ==========================================
 # SSLCOMMERZ PAYMENT
@@ -56,79 +55,107 @@ def send_order_confirmation_email(order):
 
 
 # ==========================================
-# FACEBOOK CAPI
+# FACEBOOK CAPI (CENTRALIZED WITH DEBUGGING)
 # ==========================================
-def send_facebook_purchase_capi(order, request):
-    pixel_id = getattr(settings, "FACEBOOK_PIXEL_ID", "")
-    access_token = getattr(settings, "FACEBOOK_CAPI_ACCESS_TOKEN", "")
+def send_facebook_purchase_event(order):
+    """
+    Robust Facebook CAPI Function with Debugging Prints
+    """
+    # Import inside function to avoid circular imports with models
+    from .models import SiteSettings
+    
+    print(f"\n--- [DEBUG] Starting FB Event for Order #{order.id} ---")
 
-    if not pixel_id or not access_token:
-        return
+    config = SiteSettings.objects.first()
+    if not config or not config.facebook_pixel_id or not config.facebook_access_token:
+        print("--- [DEBUG] Error: FB Config Missing in SiteSettings ---")
+        return False, "FB Config Missing"
 
-    client_ip = request.META.get("REMOTE_ADDR")
-    client_ua = request.META.get("HTTP_USER_AGENT", "")
-
-    content_ids = [str(item.product.id) for item in order.items.all()]
-
-    user_phone_hash = None
-    if getattr(order, "phone", None):
-        try:
-            user_phone_hash = hashlib.sha256(order.phone.encode("utf-8")).hexdigest()
-        except:
-            pass
-
-    user_data = {
-        "client_ip_address": client_ip,
-        "client_user_agent": client_ua,
-    }
-    if user_phone_hash:
-        user_data["ph"] = [user_phone_hash]
-
-    payload = {
-        "data": [
-            {
-                "event_name": "Purchase",
-                "event_time": int(time.time()),
-                "event_source_url": request.build_absolute_uri(),
-                "action_source": "website",
-                "user_data": user_data,
-                "custom_data": {
-                    "currency": "BDT",
-                    "value": float(order.get_total_cost()),
-                    "content_type": "product",
-                    "content_ids": content_ids,
-                },
-            }
-        ]
-    }
-
-    url = f"https://graph.facebook.com/v19.0/{pixel_id}/events"
+    # 1. Phone Number Normalization & Hashing
+    phone = str(order.phone).strip()
+    if phone.startswith('0'):
+        phone = '88' + phone
+    elif not phone.startswith('88'):
+        phone = '88' + phone 
+    
     try:
-        requests.post(
-            url,
-            params={"access_token": access_token},
-            json=payload,
-            timeout=10,
-        )
-    except Exception:
+        phone_hash = hashlib.sha256(phone.encode('utf-8')).hexdigest()
+    except:
+        phone_hash = ""
+
+    # 2. Advanced Matching Data
+    user_data = {
+        "ph": [phone_hash],
+        "external_id": [str(order.id)]
+    }
+
+    try:
+        country_hash = hashlib.sha256("bd".encode('utf-8')).hexdigest()
+        user_data["country"] = [country_hash]
+    except:
         pass
 
+    if order.fbp: user_data["fbp"] = order.fbp
+    if order.fbc: user_data["fbc"] = order.fbc
+    if order.ip_address: user_data["client_ip_address"] = order.ip_address
+    if order.user_agent: user_data["client_user_agent"] = order.user_agent
+
+    # 3. Event Data Construction
+    event_data = {
+        "event_name": "Purchase",
+        "event_time": int(timezone.now().timestamp()),
+        "action_source": "website",
+        "user_data": user_data,
+        "custom_data": {
+            "currency": "BDT",
+            "value": float(order.get_total_cost()),
+            "order_id": str(order.id),
+            "content_ids": [str(item.product.id) for item in order.items.all()],
+            "content_type": "product",
+            "num_items": order.items.count()
+        }
+    }
+
+    payload = {"data": [event_data], "access_token": config.facebook_access_token}
+    
+    # Test Code Logic (For testing in Events Manager)
+    if config.facebook_test_event_code:
+        test_code = config.facebook_test_event_code.strip()
+        payload["test_event_code"] = test_code
+        print(f"--- [DEBUG] Using Test Code: {test_code} ---")
+
+    # 4. Send Request
+    url = f"https://graph.facebook.com/v19.0/{config.facebook_pixel_id}/events"
+    
+    try:
+        print(f"--- [DEBUG] Sending Request to Facebook API... ---")
+        response = requests.post(url, json=payload, timeout=10)
+        
+        # Print Response Details
+        print(f"--- [DEBUG] FB Response Code: {response.status_code} ---")
+        print(f"--- [DEBUG] FB Response Body: {response.text} ---")
+
+        if response.status_code == 200:
+            return True, "Event Sent"
+        else:
+            error_msg = response.json().get("error", {}).get("message", "Unknown Error")
+            return False, error_msg
+            
+    except Exception as e:
+        print(f"--- [DEBUG] EXCEPTION: {str(e)} ---")
+        return False, str(e)
+
 
 # ==========================================
-# FRAUD CHECKER API (OneCodeSoft) - FIXED
+# FRAUD CHECKER API
 # ==========================================
 def get_customer_fraud_report(phone):
-    """
-    Fetch customer delivery history from OneCodeSoft FraudChecker API.
-    """
     if not phone:
         return {"error": "No Phone Number"}
 
     API_KEY = "a0b8c804675841f04b816266"
     URL = "https://fraudchecker.onecodesoft.com/api/fraudchecker"
 
-    # [FIXED] X-Domain হেডার যোগ করা হয়েছে
-    # আপনি যখন লাইভ সার্ভারে দেবেন, তখন '127.0.0.1' এর বদলে আপনার আসল ডোমেইন (যেমন: myshop.com) দেবেন।
     headers = {
         "Authorization": API_KEY,
         "X-Domain": "127.0.0.1" 
@@ -141,16 +168,11 @@ def get_customer_fraud_report(phone):
     try:
         response = requests.get(URL, headers=headers, params=params, timeout=8)
         
-        # --- DEBUGGING PRINT ---
-        print(f"--- Fraud Check for {phone} ---")
-        print(f"Status Code: {response.status_code}")
-        # -----------------------
-
         if response.status_code == 200:
             return response.json()
         
         if response.status_code == 403:
-            return {"error": "API Auth Failed (403) - Check Domain Whitelist"}
+            return {"error": "API Auth Failed (403)"}
             
         return {"error": f"API Error: {response.status_code}"}
 

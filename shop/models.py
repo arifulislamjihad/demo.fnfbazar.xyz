@@ -303,9 +303,12 @@ class Order(models.Model):
     # ------------------------------------------------
 
     # [NEW] -------- Facebook Tracking Fields --------
-    # এগুলো Sales Campaign এর জন্য অত্যন্ত জরুরি
     fbp = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Browser ID")
     fbc = models.CharField(max_length=255, blank=True, null=True, help_text="Facebook Click ID")
+    
+    # [ADDED FOR MATCH QUALITY 8.0+]
+    ip_address = models.GenericIPAddressField(blank=True, null=True, help_text="Customer IP Address")
+    user_agent = models.TextField(blank=True, null=True, help_text="Customer Browser User Agent")
     # ------------------------------------------------
 
     created = models.DateTimeField(auto_now_add=True)
@@ -354,7 +357,7 @@ class OrderItem(models.Model):
 
 
 # ===============================
-# SITE SETTINGS
+# SITE SETTINGS (UPDATED WITH HYBRID SWITCH)
 # ===============================
 class SiteSettings(models.Model):
     site_name = models.CharField(max_length=200, default="E-Shop")
@@ -395,6 +398,18 @@ class SiteSettings(models.Model):
         help_text="Long Access Token from Facebook Business Manager (Conversion API)"
     )
     
+    # [NEW] HYBRID PIXEL MODE
+    PIXEL_MODES = (
+        ('manual', 'Manual (Admin Confirm) - Recommended'),
+        ('automatic', 'Automatic (On Checkout)'),
+    )
+    facebook_pixel_mode = models.CharField(
+        max_length=20,
+        choices=PIXEL_MODES,
+        default='manual',
+        help_text="Manual: Send event when Admin confirms order. Automatic: Send event immediately after customer checkout."
+    )
+    
     facebook_test_event_code = models.CharField(
         max_length=50, 
         blank=True, 
@@ -407,3 +422,28 @@ class SiteSettings(models.Model):
 
     def __str__(self):
         return "Website Configuration"
+
+
+# ===============================
+# ORDER NOTE / AUDIT LOG
+# ===============================
+class OrderNote(models.Model):
+    order = models.ForeignKey(
+        Order, 
+        on_delete=models.CASCADE, 
+        related_name='notes'
+    )
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    note = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Note for Order #{self.order.id}"
