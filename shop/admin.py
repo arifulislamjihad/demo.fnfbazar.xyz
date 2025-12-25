@@ -26,7 +26,7 @@ from .models import (
     OrderNote,
 )
 from .steadfast import send_order_to_steadfast, refresh_steadfast_status
-from .utils import get_customer_fraud_report, send_facebook_purchase_event # [NEW: Imported from Utils]
+from .utils import get_customer_fraud_report, send_facebook_purchase_event
 
 
 # ============================================================
@@ -150,12 +150,16 @@ class OrderAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(reverse('admin:shop_order_changelist'))
 
     # --------------------------------------------------------
-    # CUSTOMER INFO COLUMN
+    # CUSTOMER INFO COLUMN (MERGED: FRAUD POPUP + NOTES)
     # --------------------------------------------------------
     def customer_info_display(self, obj):
-        badge = self.fraud_check_badge(obj)
+        # 1. Get the Fraud Badge with Popup HTML
+        badge_html = self.fraud_check_badge(obj)
+        
+        # 2. Address Shortener
         addr = obj.address[:40] + "..." if len(obj.address) > 40 else obj.address
         
+        # 3. Add Note Button
         add_note_url = reverse('admin:order-add-quick-note', args=[obj.id])
         
         script = f"""
@@ -184,6 +188,7 @@ class OrderAdmin(admin.ModelAdmin):
         </script>
         """
 
+        # 4. Note History
         all_notes = obj.notes.all()
         note_html = ""
         if all_notes.exists():
@@ -194,11 +199,108 @@ class OrderAdmin(admin.ModelAdmin):
                 rows += f"""<div style="border-bottom:1px solid #fde68a; padding: 4px 0; font-size:11px; line-height:1.3;"><div style="font-weight:bold; color:#b45309; font-size:10px;">{user_name} <span style="font-weight:normal; color:#92400e;">({time_ago} ago)</span></div><div style="color:#333;">{note.note}</div></div>"""
             note_html = f"""<div style="background:#fffbeb; border:1px solid #fcd34d; padding:5px; border-radius:4px; margin-top:5px; max-height:120px; overflow-y:auto;">{rows}</div>"""
 
+        # 5. Final Assembly
         return format_html(
-            """<div style="line-height: 1.4;"><div style="font-weight:bold; font-size:13px; color:#333;">{}</div><div style="color:#555; font-size: 12px;">📞 {}</div><div style="color:#777; font-size: 11px;">📍 {}</div><div style="margin-top:2px;">{}</div><div style="margin-top:5px;"><a href="javascript:void(0);" onclick="promptNote_{}();" style="background:#0f172a; color:#fff; padding:2px 6px; border-radius:3px; font-size:10px; text-decoration:none;">➕ Note</a></div>{}{}</div>""",
-            obj.name, obj.phone, addr, badge, obj.id, mark_safe(script), mark_safe(note_html)
+            """<div style="line-height: 1.4;"><div style="font-weight:bold; font-size:13px; color:#333;">{}</div><div style="color:#555; font-size: 12px;">📞 {}</div><div style="color:#777; font-size: 11px;">📍 {}</div><div style="margin-top:4px; margin-bottom:4px;">{}</div><div style="margin-top:5px;"><a href="javascript:void(0);" onclick="promptNote_{}();" style="background:#0f172a; color:#fff; padding:2px 6px; border-radius:3px; font-size:10px; text-decoration:none;">➕ Note</a></div>{}{}</div>""",
+            obj.name, obj.phone, addr, badge_html, obj.id, mark_safe(script), mark_safe(note_html)
         )
     customer_info_display.short_description = "Customer & Notes"
+
+    # --------------------------------------------------------
+    # FRAUD CHECK BADGE LOGIC (RESTORED FULL POPUP)
+    # --------------------------------------------------------
+    def fraud_check_badge(self, obj):
+        if not obj.phone: return ""
+        
+        data = obj.fraud_report_data
+        
+        # Auto-fetch if data is missing
+        if not data:
+            if obj.status == 'pending':
+                try: 
+                    api_response = get_customer_fraud_report(obj.phone)
+                    if api_response and "total_parcel" in api_response:
+                        obj.fraud_report_data = api_response
+                        obj.save(update_fields=['fraud_report_data'])
+                        data = api_response
+                except:
+                    pass
+        
+        if not data or "total_parcel" not in data:
+            return mark_safe('<span style="color:#bbb; font-size:10px;">Check Needed</span>')
+
+        try:
+            total = int(float(data.get("total_parcel", 0)))
+            canceled = int(float(data.get("cancel_parcel", 0)))
+            success = int(float(data.get("success_parcel", 0)))
+        except:
+            return ""
+
+        if total == 0:
+            return mark_safe('<span style="color:blue; font-weight:bold; font-size:10px;">New Customer</span>')
+
+        cancel_rate = (canceled / total) * 100 if total > 0 else 0
+        success_rate = (success / total) * 100 if total > 0 else 0
+
+        # --- RESTORED POPUP LOGIC ---
+        courier_data = data.get("response", {})
+        popup_rows = ""
+        has_data = False
+        for courier_name, info in courier_data.items():
+            stats = info.get("data", {}) if isinstance(info, dict) else {}
+            if stats:
+                c_total = int(float(stats.get('total', 0)))
+                c_cancel = int(float(stats.get('cancel', 0)))
+                c_success = int(float(stats.get('success', 0)))
+                if c_total > 0:
+                    has_data = True
+                    popup_rows += f"""
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding:4px; text-transform:capitalize; color:#000;">{courier_name}</td>
+                            <td style="padding:4px; text-align:center; color:#000;">{c_total}</td>
+                            <td style="padding:4px; text-align:center; color:green; font-weight:bold;">{c_success}</td>
+                            <td style="padding:4px; text-align:center; color:red; font-weight:bold;">{c_cancel}</td>
+                        </tr>
+                    """
+        if not has_data:
+            popup_rows = "<tr><td colspan='4' style='padding:5px; text-align:center;'>No details.</td></tr>"
+
+        if cancel_rate > 30:
+            badge = f'<div style="background:#ffebee; color:#c62828; padding:2px 6px; border-radius:10px; border:1px solid #c62828; font-weight:bold; font-size:10px; cursor:pointer; display:inline-block;">⚠️ Risky ({int(cancel_rate)}%)</div>'
+        else:
+            badge = f'<div style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:10px; border:1px solid #2e7d32; font-weight:bold; font-size:10px; cursor:pointer; display:inline-block;">✅ Safe ({int(success_rate)}%)</div>'
+
+        # Full HTML with CSS for Hover Popup
+        html = f"""
+        <style>
+            .fraud-wrapper {{ position: relative; display: inline-block; }}
+            .fraud-wrapper .fraud-popup {{ 
+                visibility: hidden; opacity: 0; position: fixed; 
+                top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                z-index: 999999; width: 300px; background: #fff; 
+                border-radius: 8px; box-shadow: 0 0 0 100vw rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.5); 
+                border: 1px solid #ccc; transition: 0.2s; 
+            }}
+            .fraud-wrapper:hover .fraud-popup {{ visibility: visible; opacity: 1; }}
+            .popup-table {{ width: 100%; border-collapse: collapse; font-size:11px; }}
+            .popup-table th {{ background: #f3f4f6; padding: 5px; text-align: center; }}
+        </style>
+        <div class="fraud-wrapper">
+            {badge}
+            <div class="fraud-popup">
+                <div style="background:#333; color:#fff; padding:8px; border-radius:6px 6px 0 0; display:flex; text-align:center;">
+                    <div style="flex:1;">Total: {total}</div>
+                    <div style="flex:1; color:#4ade80;">Success: {success}</div>
+                    <div style="flex:1; color:#f87171;">Cancel: {canceled}</div>
+                </div>
+                <table class="popup-table">
+                    <thead><tr><th style="text-align:left;">Courier</th><th>Total</th><th>Ok</th><th>X</th></tr></thead>
+                    <tbody>{popup_rows}</tbody>
+                </table>
+            </div>
+        </div>
+        """
+        return mark_safe(html)
 
     # --------------------------------------------------------
     # OTHER DISPLAYS
@@ -211,7 +313,6 @@ class OrderAdmin(admin.ModelAdmin):
             instance.save()
         formset.save_m2m()
 
-    # [UPDATED] Check for MANUAL MODE before sending event
     def make_confirmed_action(self, request, queryset):
         s = 0
         config = SiteSettings.objects.first()
@@ -225,7 +326,6 @@ class OrderAdmin(admin.ModelAdmin):
                     send_facebook_purchase_event(order)
         messages.success(request, f"{s} orders confirmed.")
 
-    # [UPDATED] Check for MANUAL MODE before sending event
     def save_model(self, request, obj, form, change):
         if change:
             old = Order.objects.get(pk=obj.pk)
@@ -282,24 +382,6 @@ class OrderAdmin(admin.ModelAdmin):
         style = "color:#166534; font-weight:bold;" if (timezone.now() - obj.created).days < 1 else "color:#666;"
         return format_html('<div style="white-space:nowrap; line-height:1.4;"><div style="font-weight:600; color:#333; font-size:12px;">{}</div><div style="font-size:11px;"><b>{}</b></div><div style="font-size:10px; margin-top:2px; {}">{}</div></div>', local.strftime("%d %b, %Y"), local.strftime("%I:%M %p"), style, ago)
     created_at_display.short_description = "Date"
-
-    def fraud_check_badge(self, obj):
-        if not obj.phone: return ""
-        if not obj.fraud_report_data:
-            if obj.status == 'pending':
-                try: obj.fraud_report_data = get_customer_fraud_report(obj.phone); obj.save(update_fields=['fraud_report_data'])
-                except: pass
-        data = obj.fraud_report_data
-        if not data or "total_parcel" not in data: return mark_safe('<span style="color:#bbb; font-size:10px;">Check Needed</span>')
-        
-        try:
-            total = int(float(data.get("total_parcel", 0)))
-            success = int(float(data.get("success_parcel", 0)))
-            if total == 0: return mark_safe('<span style="color:blue; font-weight:bold; font-size:10px;">New Customer</span>')
-            rate = (success / total) * 100
-            if rate < 70: return mark_safe(f'<div style="background:#ffebee; color:#c62828; padding:2px 6px; border-radius:10px; border:1px solid #c62828; font-weight:bold; font-size:10px;">⚠️ Risky ({int(rate)}%)</div>')
-            return mark_safe(f'<div style="background:#e8f5e9; color:#2e7d32; padding:2px 6px; border-radius:10px; border:1px solid #2e7d32; font-weight:bold; font-size:10px;">✅ Safe ({int(rate)}%)</div>')
-        except: return ""
 
     def fraud_report_detail(self, obj): return "Details hidden for brevity"
     def manual_check_fraud_action(self, request, queryset): pass
