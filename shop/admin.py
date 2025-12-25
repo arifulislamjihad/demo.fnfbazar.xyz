@@ -303,7 +303,7 @@ class OrderAdmin(admin.ModelAdmin):
         return mark_safe(html)
 
     # --------------------------------------------------------
-    # OTHER DISPLAYS
+    # ACTIONS & SAVING
     # --------------------------------------------------------
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
@@ -313,6 +313,7 @@ class OrderAdmin(admin.ModelAdmin):
             instance.save()
         formset.save_m2m()
 
+    @admin.action(description="Mark selected orders as Confirmed")
     def make_confirmed_action(self, request, queryset):
         s = 0
         config = SiteSettings.objects.first()
@@ -336,6 +337,49 @@ class OrderAdmin(admin.ModelAdmin):
                     send_facebook_purchase_event(obj)
         super().save_model(request, obj, form, change)
 
+    # [FIXED] STEADFAST ACTIONS
+    @admin.action(description="Send to Steadfast")
+    def send_to_steadfast_action(self, request, queryset):
+        success_count = 0
+        fail_count = 0
+        for order in queryset:
+            # steadfast.py থেকে ফাংশন কল করা হচ্ছে
+            is_success, msg = send_order_to_steadfast(order)
+            if is_success:
+                success_count += 1
+            else:
+                fail_count += 1
+                messages.error(request, f"Order #{order.id} Failed: {msg}")
+        
+        if success_count > 0:
+            messages.success(request, f"{success_count} orders sent to Steadfast successfully.")
+
+    @admin.action(description="Update Steadfast Status")
+    def update_steadfast_status_action(self, request, queryset):
+        updated_count = 0
+        for order in queryset:
+            # steadfast.py থেকে ফাংশন কল করা হচ্ছে
+            is_success, msg = refresh_steadfast_status(order)
+            if is_success:
+                updated_count += 1
+        messages.success(request, f"Status updated for {updated_count} orders.")
+
+    @admin.action(description="Check Fraud Status")
+    def manual_check_fraud_action(self, request, queryset):
+        count = 0
+        for order in queryset:
+            if not order.fraud_report_data:
+                # utils.py থেকে ফাংশন কল করা হচ্ছে
+                data = get_customer_fraud_report(order.phone)
+                if data and "total_parcel" in data:
+                    order.fraud_report_data = data
+                    order.save(update_fields=['fraud_report_data'])
+                    count += 1
+        messages.success(request, f"Updated fraud check for {count} orders.")
+
+    # --------------------------------------------------------
+    # DISPLAYS
+    # --------------------------------------------------------
     def order_id_display(self, obj): return format_html('<b>#{}</b>', obj.id)
     order_id_display.short_description = "ID"
 
@@ -384,9 +428,6 @@ class OrderAdmin(admin.ModelAdmin):
     created_at_display.short_description = "Date"
 
     def fraud_report_detail(self, obj): return "Details hidden for brevity"
-    def manual_check_fraud_action(self, request, queryset): pass
-    def send_to_steadfast_action(self, request, queryset): pass
-    def update_steadfast_status_action(self, request, queryset): pass
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):

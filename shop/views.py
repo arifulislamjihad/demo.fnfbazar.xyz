@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.http import JsonResponse # [NEW] Added for Webhook response
 
 from .models import (
     Category,
@@ -20,7 +21,7 @@ from .models import (
     OrderItem,
     ProductVariant,
     DeliveryOption,
-    SiteSettings, # [NEW]
+    SiteSettings,
 )
 from .forms import RegistrationForm, RatingForm
 from .utils import generate_sslcommerz_payment, send_order_confirmation_email, send_facebook_purchase_event
@@ -310,7 +311,7 @@ def cart_update(request, product_id):
 
 
 # ============================================================
-# CHECKOUT (UPDATED WITH AUTOMATIC PIXEL TRIGGER)
+# CHECKOUT
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -596,3 +597,45 @@ def rate_product(request, product_id):
 
 def custom_404_view(request, exception):
     return render(request, "shop/404.html", status=404)
+
+
+# ============================================================
+# STEADFAST WEBHOOK (AUTOMATIC STATUS UPDATE)
+# ============================================================
+@csrf_exempt
+def steadfast_webhook(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            
+            # Steadfast সাধারণত এই ডাটাগুলো পাঠায়
+            consignment_id = data.get("consignment_id")
+            status = data.get("status") # delivered, cancelled, etc.
+            
+            if consignment_id and status:
+                try:
+                    # অর্ডার খুঁজে বের করা
+                    order = Order.objects.get(steadfast_consignment_id=consignment_id)
+                    
+                    # স্ট্যাটাস আপডেট করা
+                    order.steadfast_status = status
+                    
+                    # যদি ডেলিভারি হয়, তবে মেইন অর্ডার স্ট্যাটাসও আপডেট হবে
+                    if status.lower() == "delivered":
+                        order.status = "delivered"
+                        order.paid = True # টাকা পাওয়া গেছে ধরে নেওয়া হবে
+
+                    elif status.lower() == "cancelled":
+                        order.status = "canceled"
+                    
+                    # Save changes
+                    order.save()
+                    return JsonResponse({"status": "success", "message": "Order updated"})
+                
+                except Order.DoesNotExist:
+                    return JsonResponse({"status": "error", "message": "Order not found"}, status=404)
+                    
+        except json.JSONDecodeError:
+            return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+    return JsonResponse({"status": "error", "message": "Invalid method"}, status=405)
