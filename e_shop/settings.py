@@ -19,6 +19,7 @@ IS_PRODUCTION = DJANGO_ENV == "production"
 # --------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
 
+# [IMPORTANT] Ensure DEBUG is False in Production
 DEBUG = not IS_PRODUCTION
 
 # --------------------------
@@ -32,6 +33,7 @@ DOCKER_HOSTS = [
     "aboroni_django",
     "localhost",
     "127.0.0.1",
+    "entertaining-hyperemotional-tandy.ngrok-free.dev",
 ]
 
 ALLOWED_HOSTS = list(set(env_hosts + DOCKER_HOSTS))
@@ -65,6 +67,10 @@ INSTALLED_APPS = [
 
     "django_admin_listfilter_dropdown",
     
+    # [FEATURE] CKEditor for Rich Text & Media Library
+    "ckeditor",
+    "ckeditor_uploader",
+
     "shop",
 
     "allauth",
@@ -108,7 +114,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "shop.context_processors.cart_items_count",
                 "shop.context_processors.site_settings",
-                "shop.context_processors.facebook_pixel",   # FB Pixel context
+                "shop.context_processors.facebook_pixel",
             ],
         },
     },
@@ -150,6 +156,35 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# [FEATURE] CKEDITOR CONFIGURATION
+CKEDITOR_UPLOAD_PATH = "uploads/"
+CKEDITOR_IMAGE_BACKEND = "pillow"
+CKEDITOR_BROWSE_SHOW_DIRS = True 
+CKEDITOR_RESTRICT_BY_USER = True 
+
+CKEDITOR_CONFIGS = {
+    'default': {
+        'toolbar': 'full',
+        'height': 400,
+        'width': '100%',
+        'tabSpaces': 4,
+        'extraPlugins': ','.join([
+            'uploadimage', 
+            'div',
+            'autolink',
+            'autoembed',
+            'embedsemantic',
+            'autogrow',
+            'widget',
+            'lineutils',
+            'clipboard',
+            'dialog',
+            'dialogui',
+            'elementspath'
+        ]),
+    },
+}
+
 # --------------------------
 # AUTH
 # --------------------------
@@ -169,8 +204,9 @@ SSLCOMMERZ_VALIDATION_URL = os.getenv("SSLCOMMERZ_VALIDATION_URL", "")
 # STEADFAST COURIER
 # --------------------------
 if IS_PRODUCTION:
-    STEADFAST_API_KEY = os.getenv("3k5v35is1nmksdywmdgwgkmweya6b1zr", "")
-    STEADFAST_SECRET_KEY = os.getenv("isptxoqld14x3jtf3rzrvip8", "")
+    # [FIXED] os.getenv Key name fixed. Previous code had the Value as Key.
+    STEADFAST_API_KEY = os.getenv("STEADFAST_API_KEY", "")
+    STEADFAST_SECRET_KEY = os.getenv("STEADFAST_SECRET_KEY", "")
 else:
     STEADFAST_API_KEY = "3k5v35is1nmksdywmdgwgkmweya6b1zr"
     STEADFAST_SECRET_KEY = "isptxoqld14x3jtf3rzrvip8"

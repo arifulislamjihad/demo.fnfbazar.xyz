@@ -7,14 +7,14 @@ from django.views.static import serve
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
+    # [FEATURE] CKEditor Uploader URL
+    path('ckeditor/', include('ckeditor_uploader.urls')),
     path("", include("shop.urls")),
 ]
 
-# local/dev এ DEBUG=True থাকলে
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 else:
-    # production এও /media/... সার্ভ হবে
     urlpatterns += [
         re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
     ]

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Payment Successful | E-Shop{% endblock %}
 
@@ -9,7 +10,11 @@
         <h1 class="mb-3">Payment Successful!</h1>
         <p class="lead mb-4">Thank you for your purchase. Your order #{{ order.id }} has been confirmed.</p>
         <p class="mb-4">A confirmation email has been sent to {{ order.email }}</p>
+        
+        {% if order.transaction_id %}
         <p class="mb-5">Your transaction ID: <strong>{{ order.transaction_id }}</strong></p>
+        {% endif %}
+
         <div class="d-grid gap-2 col-lg-6 mx-auto">
             <a href="{% url 'shop:profile' %}" class="btn btn-primary">View Your Orders</a>
             <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary">Continue Shopping</a>
@@ -21,14 +26,59 @@
 {% block extra_js %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        if (typeof fbq !== 'undefined') {
-            // Purchase এর বদলে Lead ইভেন্ট পাঠানো হচ্ছে
-            // কারণ Purchase ইভেন্টটি এখন Admin Panel থেকে কনফার্ম করলে যাবে
-            fbq('track', 'Lead', {
-                content_name: 'Order #{{ order.id }} (Pending)',
-                value: {{ order.get_total_cost|floatformat:2 }},
-                currency: 'BDT'
-            });
+        // Pixel ID is taken from the context variable or SiteSettings config
+        var pixelID = '{{ config.facebook_pixel_id|default:FACEBOOK_PIXEL_ID }}'; 
+
+        if (typeof fbq !== 'undefined' && pixelID) {
+            
+            // 1. Prepare Phone Number (Ensure standard format e.g., 88017...)
+            var rawPhone = '{{ order.phone }}';
+            var formattedPhone = rawPhone.replace(/[^0-9]/g, ''); // Remove non-numeric
+            
+            // Add country code if missing (Basic check for BD)
+            if (formattedPhone.startsWith('01')) {
+                formattedPhone = '88' + formattedPhone;
+            }
+
+            // 2. Advanced Matching Data
+            var advancedMatchingData = {
+                ph: formattedPhone, 
+                fn: '{{ order.name }}'.split(" ")[0], // First word as First Name
+                external_id: '{{ order.id }}'
+            };
+
+            // 3. Re-initialize Pixel with Advanced Matching Data
+            fbq('init', pixelID, advancedMatchingData);
+
+            // 4. Conditional Event Firing based on Config Mode
+            // এই অংশটিই আপনার ডুপ্লিকেট সমস্যার সমাধান করবে
+            {% if config.facebook_pixel_mode == 'manual' %}
+                
+                // Manual Mode: Send 'Lead' now. 'Purchase' will come later from Server when Admin confirms.
+                fbq('track', 'Lead', {
+                    content_name: 'Order #{{ order.id }}',
+                    content_category: 'Checkout',
+                    value: {{ order.get_total_cost|floatformat:2 }},
+                    currency: 'BDT',
+                    content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% if not forloop.last %},{% endif %}{% endfor %}],
+                    content_type: 'product'
+                });
+                console.log("Pixel Mode: Manual - Firing LEAD Event");
+
+            {% else %}
+
+                // Automatic Mode: Send 'Purchase' immediately.
+                fbq('track', 'Purchase', {
+                    content_name: 'Order #{{ order.id }}',
+                    content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% if not forloop.last %},{% endif %}{% endfor %}],
+                    content_type: 'product',
+                    value: {{ order.get_total_cost|floatformat:2 }},
+                    currency: 'BDT',
+                    num_items: {{ order.items.count }}
+                });
+                console.log("Pixel Mode: Automatic - Firing PURCHASE Event");
+
+            {% endif %}
         }
     });
 </script>

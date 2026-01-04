@@ -5,317 +5,279 @@
 {% block content %}
 
 <style>
-    /* Radio Input লুকানো */
-    .variant-input {
-        position: absolute;
-        opacity: 0;
-        cursor: pointer;
-        height: 0;
-        width: 0;
+    /* --- Amazon Style Variant & Gallery CSS --- */
+    .variant-input { position: absolute; opacity: 0; cursor: pointer; }
+
+    .variant-text-box {
+        display: inline-block; padding: 8px 14px; border: 1px solid #d1d5db;
+        border-radius: 3px; background-color: #fff; color: #111; font-size: 13px;
+        font-weight: 500; cursor: pointer; min-width: 40px; text-align: center;
+        margin: 0 6px 6px 0; transition: all 0.1s;
+    }
+    .variant-input:checked + .variant-text-box {
+        border-color: #e77600; background-color: #fff7e6; color: #e77600;
+        font-weight: bold; box-shadow: 0 0 0 1px #e77600;
     }
 
-    /* TEXT/SIZE BOX ডিজাইন (Unselected) */
-    .variant-box {
-        display: inline-block;
-        padding: 8px 16px;
-        border: 2px solid #e5e7eb; /* Gray border */
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #374151;
-        background-color: white;
-        cursor: pointer;
-        transition: all 0.2s;
-        min-width: 60px;
-        text-align: center;
+    .variant-img-box {
+        display: inline-flex; width: 45px; height: 45px; border: 1px solid #d1d5db;
+        border-radius: 3px; padding: 2px; cursor: pointer; margin: 0 6px 6px 0;
+        overflow: hidden; align-items: center; justify-content: center;
     }
-
-    /* TEXT/SIZE BOX ডিজাইন (SELECTED) - যখন টিক দেওয়া হবে */
-    .variant-input:checked + .variant-box {
-        border-color: #9333ea; /* Purple Border */
-        background-color: #f3e8ff; /* Light Purple Background */
-        color: #9333ea; /* Purple Text */
-        box-shadow: 0 0 0 1px #9333ea;
-    }
-
-    /* COLOR CIRCLE ডিজাইন (Unselected) */
-    .variant-color {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px; /* সাইজ বড় করা হয়েছে */
-        height: 40px;
-        border-radius: 50%;
-        border: 2px solid #e5e7eb;
-        cursor: pointer;
-        transition: transform 0.2s;
-    }
-
-    /* COLOR CIRCLE ডিজাইন (SELECTED) */
-    .variant-input:checked + .variant-color {
-        border: 2px solid white; /* সাদার বর্ডার */
-        box-shadow: 0 0 0 3px #9333ea; /* তার বাইরে বেগুনি রিং */
-        transform: scale(1.1);
-    }
+    .variant-img-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
+    .variant-color-fill { width: 100%; height: 100%; border-radius: 1px; }
+    .variant-input:checked + .variant-img-box { border-color: #e77600; box-shadow: 0 0 0 2px #e77600; }
     
-    /* টিক চিহ্ন (Icon) */
-    .check-icon {
-        display: none;
-        color: white;
-        font-size: 14px;
-        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+    /* GALLERY */
+    .gallery-container { display: flex; gap: 15px; }
+    .thumbnail-list { display: flex; flex-direction: column; gap: 10px; width: 60px; }
+    .thumbnail-item {
+        width: 100%; height: 60px; border: 1px solid #d1d5db; border-radius: 4px;
+        padding: 2px; cursor: pointer; overflow: hidden; position: relative;
     }
+    .thumbnail-item:hover, .thumbnail-item.active { border-color: #e77600; box-shadow: 0 0 0 1px #e77600; }
+    .thumbnail-item img { width: 100%; height: 100%; object-fit: contain; }
     
-    .variant-input:checked + .variant-color .check-icon {
+    .play-icon {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        color: rgba(0,0,0,0.7); font-size: 20px; background: rgba(255,255,255,0.6);
+        border-radius: 50%; width: 25px; height: 25px; display: flex;
+        align-items: center; justify-content: center;
+    }
+
+    .main-media-area {
+        flex: 1; display: flex; justify-content: center; align-items: center;
+        border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #fff;
+        min-height: 400px;
+    }
+    .hidden-media { display: none !important; }
+
+    /* Buttons */
+    .btn-amazon-yellow { background: #ffd814; border: 1px solid #fcd200; border-radius: 20px; width: 100%; padding: 8px; font-weight: 500; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+    .btn-amazon-yellow:hover { background: #f7ca00; }
+    .btn-amazon-orange { background: #ffa41c; border: 1px solid #ff8f00; border-radius: 20px; width: 100%; padding: 8px; font-weight: 500; font-size: 13px; cursor: pointer; }
+    .btn-amazon-orange:hover { background: #fa8900; }
+    .btn-disabled { opacity: 0.5; cursor: not-allowed !important; background: #e7e7e7 !important; }
+
+    /* --- CKEDITOR CONTENT FIX --- */
+    /* This restores lists, bold, and other formatting inside the description */
+    .ck-content {
+        color: #374151; /* gray-700 */
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    .ck-content ul {
+        list-style-type: disc !important;
+        margin-left: 20px !important;
+        padding-left: 10px !important;
+        margin-bottom: 10px;
+    }
+    .ck-content ol {
+        list-style-type: decimal !important;
+        margin-left: 20px !important;
+        padding-left: 10px !important;
+        margin-bottom: 10px;
+    }
+    .ck-content li {
+        margin-bottom: 4px;
+    }
+    .ck-content strong, .ck-content b {
+        font-weight: bold !important;
+        color: #111;
+    }
+    .ck-content em, .ck-content i {
+        font-style: italic !important;
+    }
+    .ck-content h1, .ck-content h2, .ck-content h3, .ck-content h4 {
+        font-weight: bold;
+        margin-top: 15px;
+        margin-bottom: 10px;
         display: block;
     }
-
-    /* Disabled button style */
-    .btn-disabled {
-        opacity: 0.5;
-        cursor: not-allowed !important;
-        background-color: #9ca3af !important;
-        border-color: #9ca3af !important;
+    .ck-content p {
+        margin-bottom: 10px;
+    }
+    .ck-content a {
+        color: #2563eb;
+        text-decoration: underline;
     }
 </style>
 
-<nav class="text-sm mb-6">
-    <ol class="flex flex-wrap gap-2 text-gray-500">
-        <li><a href="{% url 'shop:home' %}" class="text-purple-600 hover:underline">Home</a></li>
-        <span>/</span>
-        <li><a href="{% url 'shop:product_list' %}" class="text-purple-600 hover:underline">Products</a></li>
-        <span>/</span>
-        <li><a href="{% url 'shop:product_list_by_category' product.category.slug %}" class="text-purple-600 hover:underline">{{ product.category.name }}</a></li>
-        <span>/</span>
-        <li class="text-gray-700 font-semibold">{{ product.name }}</li>
-    </ol>
-</nav>
+<div class="max-w-[1400px] mx-auto px-4 py-2 text-xs text-gray-500">
+    <a href="{% url 'shop:home' %}" class="hover:underline">Home</a> / 
+    <span class="text-gray-800 font-bold truncate">{{ product.name }}</span>
+</div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-
-    <div class="relative group">
-        {% if product.image %}
-            <img src="{{ product.image.url }}"
-                 class="w-full rounded-xl shadow-md object-cover transition-transform duration-300 group-hover:scale-105 cursor-zoom-in">
-        {% else %}
-            <div class="w-full h-80 bg-gray-200 flex items-center justify-center rounded-xl">
-                <i class="fas fa-image text-5xl text-gray-400"></i>
-            </div>
-        {% endif %}
-    </div>
-
-    <div>
-
-        <h1 class="text-3xl font-bold text-gray-800 mb-3">{{ product.name }}</h1>
-
-        <div class="flex items-center gap-2 mb-3">
-            <div class="text-yellow-400 text-lg">
-                {% for i in "12345" %}
-                    {% if forloop.counter <= product.average_rating %}
-                        ★
-                    {% else %}
-                        ☆
-                    {% endif %}
-                {% endfor %}
-            </div>
-            <span class="text-gray-600 text-sm">
-                {{ product.ratings.count }} review{{ product.ratings.count|pluralize }}
-            </span>
-        </div>
-
-        <div class="text-4xl font-extrabold text-purple-600 mb-2">
-            <span id="product-price">৳{{ product.price }}</span>
-        </div>
-
-        <div class="flex flex-wrap gap-3 mb-4">
-            {% if product.stock > 0 %}
-                <span id="product-stock-label"
-                      class="bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow">
-                    In Stock ({{ product.stock }})
-                </span>
-            {% else %}
-                <span id="product-stock-label"
-                      class="bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow">
-                    Out of Stock
-                </span>
-            {% endif %}
-
-            <span class="bg-gray-100 text-gray-700 px-4 py-1 rounded-full text-sm border shadow-sm">
-                {{ product.category.name }}
-            </span>
-        </div>
-
-        <p class="text-gray-600 text-lg leading-relaxed mb-6">
-            {{ product.description }}
-        </p>
-
-        {% if product.has_variants %}
-            <div class="mb-8 space-y-6">
-                {% for attr_id, data in variant_attributes.items %}
-                    <div class="attribute-group" data-attribute-id="{{ data.attribute.id }}">
-                        <label class="block font-semibold text-gray-800 mb-3">
-                            {{ data.attribute.name }}:
-                        </label>
-                        
-                        <div class="flex flex-wrap gap-3">
-                            {% for val in data.values %}
-                            <label>
-                                <input type="radio" 
-                                       name="attr_{{ data.attribute.id }}" 
-                                       value="{{ val.id }}" 
-                                       class="variant-input">
-                                
-                                {% if data.attribute.type|lower != 'color' %}
-                                    <span class="variant-box">
-                                        {{ val.value }}
-                                    </span>
-                                
-                                {% else %}
-                                    <span class="variant-color"
-                                          style="background-color: {{ val.color_code|default:val.value }};"
-                                          title="{{ val.value }}">
-                                        <i class="fas fa-check check-icon"></i>
-                                    </span>
-                                {% endif %}
-                            </label>
-                            {% endfor %}
+<div class="max-w-[1400px] mx-auto px-4 py-4">
+    <div class="flex flex-col md:flex-row gap-8">
+        
+        <div class="w-full md:w-5/12">
+            <div class="sticky top-4">
+                <div class="gallery-container">
+                    
+                    <div class="thumbnail-list">
+                        {% if product.image %}
+                        <div class="thumbnail-item active" onclick="showMedia('image', '{{ product.image.url }}', this)">
+                            <img src="{{ product.image.url }}" alt="Main">
                         </div>
+                        {% endif %}
+
+                        {% for item in product.images.all %}
+                            {% if item.video_file %}
+                                <div class="thumbnail-item" onclick="showMedia('video', '{{ item.video_file.url }}', this)">
+                                    {% if item.image %}<img src="{{ item.image.url }}">{% else %}<div class="w-full h-full bg-gray-200 flex items-center justify-center"><i class="fas fa-video"></i></div>{% endif %}
+                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
+                                </div>
+                            
+                            {% elif item.youtube_url %}
+                                <div class="thumbnail-item" onclick="showMedia('youtube', '{{ item.get_youtube_embed_url }}', this)">
+                                    {% if item.image %}<img src="{{ item.image.url }}">{% else %}<div class="w-full h-full bg-red-100 flex items-center justify-center"><i class="fab fa-youtube text-red-600"></i></div>{% endif %}
+                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
+                                </div>
+
+                            {% else %}
+                                <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
+                                    <img src="{{ item.image.url }}" alt="Gallery">
+                                </div>
+                            {% endif %}
+                        {% endfor %}
                     </div>
-                {% endfor %}
-                
-                <p id="variant-message" class="text-sm font-medium text-orange-600 mt-2">
-                    Please select all options above.
-                </p>
-            </div>
-        {% endif %}
 
-        {% if product.stock > 0 %}
-        <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                    <div class="main-media-area">
+                        <img id="main-product-image" 
+                             src="{% if product.image %}{{ product.image.url }}{% endif %}" 
+                             class="w-full h-auto object-contain max-h-[550px] transition-opacity duration-300">
+                        
+                        <video id="main-product-video" controls class="w-full max-h-[550px] hidden-media">
+                            <source id="video-source" src="" type="video/mp4">
+                        </video>
 
-            <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-full sm:w-1/2">
-                {% csrf_token %}
-                {% if product.has_variants %}
-                    <input type="hidden" name="variant_id" id="variant-id-input">
-                {% endif %}
-                <button type="submit"
-                        id="add-to-cart-main"
-                        data-product-id="{{ product.id }}"
-                        data-product-name="{{ product.name|escapejs }}"
-                        data-product-price="{{ product.price|floatformat:2 }}"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
-                               {% if product.has_variants %}btn-disabled{% endif %}"
-                        {% if product.has_variants %}disabled{% endif %}>
-                    <i class="fas fa-shopping-cart mr-2"></i> কার্টে যোগ করুন
-                </button>
-            </form>
+                        <iframe id="main-youtube-frame" class="w-full h-[400px] hidden-media" 
+                                src="" frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
 
-            <form action="{% url 'shop:checkout' %}" method="get" class="w-full sm:w-1/2">
-                <input type="hidden" name="buy_now_id" value="{{ product.id }}">
-                {% if product.has_variants %}
-                    <input type="hidden" name="variant_id" id="buy-now-variant-id">
-                {% endif %}
-                <button type="submit"
-                        id="buy-now-btn"
-                        class="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg text-lg shadow transition transform active:scale-95
-                               {% if product.has_variants %}btn-disabled{% endif %}"
-                        {% if product.has_variants %}disabled{% endif %}>
-                    <i class="fas fa-bolt mr-2"></i> অর্ডার করুন
-                </button>
-            </form>
-
-        </div>
-        {% endif %}
-
-        <div class="mt-8 grid grid-cols-3 gap-4 text-center text-gray-600 text-sm">
-            <div class="border p-4 rounded-lg shadow-sm bg-white">
-                <i class="fas fa-truck text-purple-600 text-xl mb-2"></i>
-                <p>Fast Delivery</p>
-            </div>
-            <div class="border p-4 rounded-lg shadow-sm bg-white">
-                <i class="fas fa-shield-alt text-purple-600 text-xl mb-2"></i>
-                <p>Secure Payment</p>
-            </div>
-            <div class="border p-4 rounded-lg shadow-sm bg-white">
-                <i class="fas fa-undo text-purple-600 text-xl mb-2"></i>
-                <p>Easy Returns</p>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<div class="mt-16">
-    <h2 class="text-2xl font-bold mb-4">Customer Reviews</h2>
-    <div class="border-b mb-6"></div>
-
-    {% if product.ratings.count > 0 %}
-        {% for rating in product.ratings.all %}
-        <div class="bg-white shadow rounded-xl p-5 mb-4">
-            <div class="flex justify-between items-center mb-2">
-                <p class="font-semibold text-gray-800">{{ rating.user.username }}</p>
-                <span class="text-yellow-400 text-lg">
-                    {% for i in "12345" %}
-                        {% if forloop.counter <= rating.rating %}★{% else %}☆{% endif %}
-                    {% endfor %}
-                </span>
-            </div>
-            <p class="text-gray-400 text-sm">{{ rating.created|date:"F d, Y" }}</p>
-            <p class="text-gray-700 mt-2">{{ rating.comment }}</p>
-        </div>
-        {% endfor %}
-    {% else %}
-        <p class="text-gray-500">No reviews yet. Be the first to review!</p>
-    {% endif %}
-
-    {% if user.is_authenticated %}
-        <a href="{% url 'shop:rate_product' product.id %}"
-           class="mt-6 inline-block bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg shadow">
-            Write a Review
-        </a>
-    {% else %}
-        <p class="mt-6 text-blue-700">
-            Please <a href="{% url 'shop:login' %}?next={{ request.path }}" class="underline font-semibold">log in</a> to write a review.
-        </p>
-    {% endif %}
-</div>
-
-{% if related_products %}
-<div class="mt-16">
-    <h3 class="text-2xl font-bold mb-6">Related Products</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {% for rp in related_products %}
-        <div class="bg-white border rounded-xl shadow hover:shadow-lg transition overflow-hidden">
-            <a href="{% url 'shop:product_detail' rp.slug %}">
-                <img src="{{ rp.image.url }}" class="w-full h-48 object-cover" />
-            </a>
-            <div class="p-4">
-                <h4 class="font-semibold text-gray-800 line-clamp-2">{{ rp.name }}</h4>
-                <div class="flex justify-between items-center mt-2">
-                    <p class="font-bold text-purple-600 text-lg">৳{{ rp.price }}</p>
                 </div>
             </div>
-            <div class="flex p-4 gap-2 border-t">
-                <a href="{% url 'shop:product_detail' rp.slug %}"
-                   class="w-1/2 text-center border border-purple-600 text-purple-600 py-2 rounded-lg hover:bg-purple-50 text-sm">
-                    View
-                </a>
-                <form method="post" action="{% url 'shop:cart_add' rp.id %}" class="w-1/2">
-                    {% csrf_token %}
-                    <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-sm">
-                        Add
-                    </button>
-                </form>
+        </div>
+
+        <div class="w-full md:w-4/12">
+            <h1 class="text-2xl font-medium text-gray-900 mb-2">{{ product.name }}</h1>
+            
+            <div class="border-b border-gray-200 pb-4 mb-4">
+                <div class="flex items-baseline gap-2">
+                    <span class="text-red-700 text-2xl font-light">-15%</span>
+                    <span class="text-3xl font-medium text-gray-900">৳<span id="product-price">{{ product.price }}</span></span>
+                </div>
+            </div>
+
+            {% if product.has_variants %}
+            <div class="mb-4">
+                {% for attr_id, data in variant_attributes.items %}
+                <div class="attribute-group mb-4" data-attribute-id="{{ data.attribute.id }}">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">{{ data.attribute.name }}:</label>
+                    <div class="flex flex-wrap">
+                        {% for val in data.values %}
+                        <label>
+                            <input type="radio" name="attr_{{ data.attribute.id }}" value="{{ val.id }}" class="variant-input">
+                            {% if val.image_src %}
+                                <span class="variant-img-box" title="{{ val.value }}"><img src="{{ val.image_src }}"></span>
+                            {% elif data.attribute.type|lower == 'color' %}
+                                <span class="variant-img-box" title="{{ val.value }}"><div class="variant-color-fill" style="background-color: {{ val.color_code|default:'#eee' }};"></div></span>
+                            {% else %}
+                                <span class="variant-text-box">{{ val.value }}</span>
+                            {% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <div id="variant-message" class="text-sm font-bold text-red-600 hidden">Please select options.</div>
+            </div>
+            {% endif %}
+
+            <div class="mt-4">
+                <h3 class="font-bold text-sm mb-2 text-gray-800">Product Description</h3>
+                
+                <div class="ck-content">
+                    {{ product.description|safe }}
+                </div>
             </div>
         </div>
-        {% endfor %}
+
+        <div class="w-full md:w-3/12">
+            <div class="border rounded-lg p-4 bg-white shadow-sm sticky top-4">
+                <div class="text-2xl font-medium text-gray-900 mb-1">৳<span id="buy-box-price">{{ product.price }}</span></div>
+                <div class="text-sm text-gray-600 mb-4">Delivery: <strong>৳80.00</strong></div>
+
+                <div class="mb-4">
+                    <h4 id="product-stock-label" class="text-lg font-medium {% if product.stock > 0 %}text-green-700{% else %}text-red-600{% endif %}">
+                        {% if product.stock > 0 %}In Stock.{% else %}Out of Stock.{% endif %}
+                    </h4>
+                </div>
+
+                {% if product.stock > 0 %}
+                <form action="{% url 'shop:cart_add' product.id %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="variant_id" id="variant-id-input">
+                    <button type="submit" id="add-to-cart-main" class="btn-amazon-yellow {% if product.has_variants %}btn-disabled{% endif %}" {% if product.has_variants %}disabled{% endif %}>Add to Cart</button>
+                </form>
+                <form action="{% url 'shop:checkout' %}" method="get">
+                    <input type="hidden" name="buy_now_id" value="{{ product.id }}">
+                    <input type="hidden" name="variant_id" id="buy-now-variant-id">
+                    <button type="submit" id="buy-now-btn" class="btn-amazon-orange {% if product.has_variants %}btn-disabled{% endif %}" {% if product.has_variants %}disabled{% endif %}>Buy Now</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
-{% endif %}
 
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
+
+<script>
+    function showMedia(type, url, element) {
+        const imgEl = document.getElementById("main-product-image");
+        const vidEl = document.getElementById("main-product-video");
+        const vidSrc = document.getElementById("video-source");
+        const ytEl = document.getElementById("main-youtube-frame");
+
+        // Hide all first
+        imgEl.classList.add('hidden-media');
+        vidEl.classList.add('hidden-media');
+        ytEl.classList.add('hidden-media');
+        
+        // Stop Players
+        vidEl.pause();
+        ytEl.src = ""; // Stop previous YouTube video
+
+        if (type === 'video') {
+            vidEl.classList.remove('hidden-media');
+            vidSrc.src = url;
+            vidEl.load();
+            vidEl.play();
+        } 
+        else if (type === 'youtube') {
+            ytEl.classList.remove('hidden-media');
+            
+            // [SMART FIX] Check if URL already has '?' to decide between '?' and '&'
+            const separator = url.includes('?') ? '&' : '?';
+            ytEl.src = url + separator + "autoplay=1&mute=1"; 
+        } 
+        else {
+            imgEl.classList.remove('hidden-media');
+            imgEl.src = url;
+        }
+
+        document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active'));
+        if(element) element.classList.add('active');
+    }
+</script>
 
 {% if product.has_variants %}
 <script>
@@ -325,62 +287,24 @@
         const allRadioInputs = document.querySelectorAll(".variant-input");
         
         const hiddenInput = document.getElementById("variant-id-input");
-        const addBtn = document.getElementById("add-to-cart-main");
-        const priceEl = document.getElementById("product-price");
-        const stockLabel = document.getElementById("product-stock-label");
-        const messageEl = document.getElementById("variant-message");
-        const buyNowBtn = document.getElementById("buy-now-btn");
         const buyNowVariantInput = document.getElementById("buy-now-variant-id");
-
-        function setButtons(enabled) {
-            if (addBtn) {
-                if (enabled) {
-                    addBtn.classList.remove("btn-disabled");
-                    addBtn.disabled = false;
-                } else {
-                    addBtn.classList.add("btn-disabled");
-                    addBtn.disabled = true;
-                }
-            }
-            if (buyNowBtn) {
-                if (enabled) {
-                    buyNowBtn.classList.remove("btn-disabled");
-                    buyNowBtn.disabled = false;
-                } else {
-                    buyNowBtn.classList.add("btn-disabled");
-                    buyNowBtn.disabled = true;
-                }
-            }
-        }
+        const priceEl = document.getElementById("product-price");
+        const buyBoxPriceEl = document.getElementById("buy-box-price");
+        const stockLabel = document.getElementById("product-stock-label");
+        const addBtn = document.getElementById("add-to-cart-main");
+        const buyNowBtn = document.getElementById("buy-now-btn");
 
         function updateVariant() {
-            if (!attributeGroups.length) {
-                setButtons(true);
-                return;
-            }
-
-            const parts = [];
+            let parts = [];
             let allSelected = true;
-
-            attributeGroups.forEach(function (group) {
-                const attrId = group.dataset.attributeId;
-                const checkedInput = group.querySelector("input:checked");
-
-                if (checkedInput) {
-                    parts.push(attrId + ":" + checkedInput.value);
-                } else {
-                    allSelected = false;
-                }
+            attributeGroups.forEach(g => {
+                let c = g.querySelector("input:checked");
+                if (c) parts.push(g.dataset.attributeId + ":" + c.value);
+                else allSelected = false;
             });
 
             if (!allSelected) {
-                if (messageEl) {
-                    messageEl.textContent = "Please select all options above.";
-                    messageEl.style.color = "#ea580c"; // Orange
-                }
-                setButtons(false);
-                if (hiddenInput) hiddenInput.value = "";
-                if (buyNowVariantInput) buyNowVariantInput.value = "";
+                [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.add("btn-disabled"); b.disabled=true; }});
                 return;
             }
 
@@ -388,47 +312,22 @@
             const key = parts.join("|");
             const variant = variantMap[key];
 
-            if (!variant || variant.stock <= 0) {
-                if (messageEl) {
-                    messageEl.textContent = "This combination is out of stock.";
-                    messageEl.style.color = "#dc2626"; // Red
+            if (variant && variant.stock > 0) {
+                if (variant.image) {
+                    showMedia('image', variant.image, null); 
                 }
-                setButtons(false);
-                if (hiddenInput) hiddenInput.value = "";
-                if (buyNowVariantInput) buyNowVariantInput.value = "";
-                if (stockLabel) {
-                    stockLabel.textContent = "Out of Stock";
-                    stockLabel.className = "bg-red-500 text-white px-4 py-1 rounded-full text-sm shadow";
-                }
-                return;
-            }
-
-            // Success
-            if (hiddenInput) hiddenInput.value = variant.id;
-            if (buyNowVariantInput) buyNowVariantInput.value = variant.id;
-            setButtons(true);
-
-            if (messageEl) {
-                messageEl.textContent = "আপনার নির্বাচন সম্পন্ন হয়েছে! এখনই অর্ডার দিন";
-                messageEl.style.color = "#16a34a"; // Green
-            }
-            if (priceEl) {
-                priceEl.textContent = "৳" + variant.price.toFixed(2);
-            }
-            if (stockLabel) {
-                stockLabel.textContent = "In Stock (" + variant.stock + ")";
-                stockLabel.className = "bg-green-500 text-white px-4 py-1 rounded-full text-sm shadow";
-            }
-            if (addBtn) {
-                addBtn.dataset.productPrice = variant.price.toFixed(2);
+                if(priceEl) priceEl.textContent = variant.price;
+                if(buyBoxPriceEl) buyBoxPriceEl.textContent = variant.price;
+                if(stockLabel) { stockLabel.textContent = "In Stock."; stockLabel.className = "text-lg text-green-700 font-medium"; }
+                if(hiddenInput) hiddenInput.value = variant.id;
+                if(buyNowVariantInput) buyNowVariantInput.value = variant.id;
+                [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.remove("btn-disabled"); b.disabled=false; }});
+            } else {
+                if(stockLabel) { stockLabel.textContent = "Currently Unavailable"; stockLabel.className = "text-lg text-red-600 font-medium"; }
+                [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.add("btn-disabled"); b.disabled=true; }});
             }
         }
-
-        allRadioInputs.forEach(function (radio) {
-            radio.addEventListener("change", updateVariant);
-        });
-
-        updateVariant();
+        allRadioInputs.forEach(r => r.addEventListener("change", updateVariant));
     });
 </script>
 {% endif %}

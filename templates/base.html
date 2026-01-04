@@ -10,7 +10,7 @@
     </title>
     {% load static %}
 
-    {% if FACEBOOK_PIXEL_ID %}
+    {% if site_settings.facebook_pixel_id %}
     <script>
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -21,12 +21,31 @@
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
 
-        fbq('init', '{{ FACEBOOK_PIXEL_ID }}');
+        // Advanced Matching Logic (User Data Tracking)
+        var pixelID = '{{ site_settings.facebook_pixel_id }}';
+        var userData = {};
+
+        {% if request.user.is_authenticated %}
+            userData = {
+                em: '{{ request.user.email|default:"" }}', 
+                fn: '{{ request.user.first_name|default:"" }}', 
+                ln: '{{ request.user.last_name|default:"" }}'
+            };
+            fbq('init', pixelID, userData);
+        {% else %}
+            fbq('init', pixelID);
+        {% endif %}
+
+        // Test Event Code (If added in Admin Panel)
+        {% if site_settings.facebook_test_event_code %}
+            fbq('set', 'test_event_code', '{{ site_settings.facebook_test_event_code }}');
+        {% endif %}
+
         fbq('track', 'PageView');
     </script>
     <noscript>
         <img height="1" width="1" style="display:none"
-             src="https://www.facebook.com/tr?id={{ FACEBOOK_PIXEL_ID }}&ev=PageView&noscript=1"/>
+             src="https://www.facebook.com/tr?id={{ site_settings.facebook_pixel_id }}&ev=PageView&noscript=1"/>
     </noscript>
     {% endif %}
     <link rel="stylesheet" href="{% static 'css/output.css' %}">

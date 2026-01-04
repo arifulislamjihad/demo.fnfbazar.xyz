@@ -31,6 +31,9 @@ urlpatterns = [
     path('profile/', views.profile, name='profile'),
     path('rate/<int:product_id>/', views.rate_product, name='rate_product'),
 
-    # --- [NEW] Steadfast Webhook (For Automatic Status Update) ---
+    # --- Webhooks (Automations) ---
     path('webhook/steadfast/', views.steadfast_webhook, name='steadfast_webhook'),
+    
+    # [NEW] WooCommerce Order Sync Webhook (Unique per User)
+    path('api/webhook/woocommerce-order/<int:user_id>/', views.woocommerce_order_webhook, name='woocommerce_webhook'),
 ]
