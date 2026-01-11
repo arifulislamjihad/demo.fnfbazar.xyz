@@ -72,10 +72,13 @@
                             <img src="{{ product.image.url }}" alt="Main">
                         </div>
                         {% endif %}
+                        
                         {% for item in product.images.all %}
-                        <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
-                            <img src="{{ item.image.url }}" alt="Gallery">
-                        </div>
+                            {% if item.image %}
+                            <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
+                                <img src="{{ item.image.url }}" alt="Gallery">
+                            </div>
+                            {% endif %}
                         {% endfor %}
                     </div>
                     <div class="main-media-area">
@@ -159,13 +162,13 @@
     // Gallery Logic
     function showMedia(type, url, element) { 
         const imgEl = document.getElementById("main-product-image"); 
-        imgEl.src = url; 
+        if(imgEl && url) { imgEl.src = url; }
         document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active')); 
         if(element) element.classList.add('active'); 
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        // --- 🚀 Amazon Style Variant Selection Logic (RESTORED) ---
+        // --- 🚀 Amazon Style Variant Selection Logic ---
         {% if product.has_variants %}
         const variantMap = {{ variant_map_json|default:"{}"|safe }};
         const attributeGroups = document.querySelectorAll(".attribute-group");
@@ -199,31 +202,33 @@
             const variant = variantMap[key];
 
             if (variant && variant.stock > 0) {
-                // Update UI with variant details
                 if (variant.image) { showMedia('image', variant.image, null); }
                 if(priceEl) priceEl.textContent = variant.price;
                 if(buyBoxPriceEl) buyBoxPriceEl.textContent = variant.price;
                 
-                stockLabel.textContent = "In Stock.";
-                stockLabel.className = "text-lg text-green-700 font-medium";
+                if(stockLabel) {
+                    stockLabel.textContent = "In Stock.";
+                    stockLabel.className = "text-lg text-green-700 font-medium";
+                }
                 
                 if(hiddenInput) hiddenInput.value = variant.id;
                 if(buyNowVariantInput) buyNowVariantInput.value = variant.id;
                 
                 [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.remove("btn-disabled"); b.disabled=false; }});
             } else {
-                stockLabel.textContent = "Currently Unavailable";
-                stockLabel.className = "text-lg text-red-600 font-medium";
+                if(stockLabel) {
+                    stockLabel.textContent = "Currently Unavailable";
+                    stockLabel.className = "text-lg text-red-600 font-medium";
+                }
                 [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.add("btn-disabled"); b.disabled=true; }});
             }
         }
         allRadioInputs.forEach(r => r.addEventListener("change", updateVariant));
         {% endif %}
 
-        // --- 📊 Facebook Pixel Events (STRICT LOGIC) ---
+        // --- 📊 Facebook Pixel Events ---
         {% if site_settings.facebook_pixel_id %}
         if (typeof fbq !== 'undefined') {
-            // 1. ViewContent
             fbq('track', 'ViewContent', {
                 content_name: '{{ product.name|escapejs }}',
                 content_ids: ['{{ product.id }}'],
@@ -232,9 +237,7 @@
                 currency: 'BDT',
                 content_category: '{{ product.category.name|escapejs }}'
             });
-            console.log("✅ Pixel: ViewContent Fired");
 
-            // 2. AddToCart
             const cartForm = document.getElementById("pixel-cart-form");
             if (cartForm) {
                 cartForm.addEventListener("submit", function() {
@@ -245,7 +248,6 @@
                         value: {{ product.price|floatformat:2 }},
                         currency: 'BDT'
                     });
-                    console.log("✅ Pixel: AddToCart Fired");
                 });
             }
         }

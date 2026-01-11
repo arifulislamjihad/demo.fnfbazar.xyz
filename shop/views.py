@@ -19,7 +19,9 @@ from .models import (
 from .forms import RegistrationForm, RatingForm
 from .utils import generate_sslcommerz_payment, send_order_confirmation_email, send_facebook_purchase_event, send_facebook_lead_event
 
-# ... (Auth views: login, register, logout unchanged) ...
+# ============================================================
+# AUTH VIEWS
+# ============================================================
 def login_view(request):
     if request.method == "POST":
         username = request.POST.get("username")
@@ -47,7 +49,7 @@ def logout_view(request):
     return redirect("shop:login")
 
 # ============================================================
-# HOME
+# HOME & PRODUCT VIEWS
 # ============================================================
 def home(request):
     flash_sale_products = Product.objects.filter(is_flash_sale=True, available=True).order_by("-updated")[:12]
@@ -86,33 +88,64 @@ def product_list(request, category_slug=None):
 def product_detail(request, slug):
     product = get_object_or_404(Product, slug=slug, available=True)
     related_products = Product.objects.filter(category=product.category, available=True).exclude(id=product.id)[:4]
+    
     user_rating = None
     if request.user.is_authenticated:
         try: user_rating = Rating.objects.get(product=product, user=request.user)
         except Rating.DoesNotExist: user_rating = None
     rating_form = RatingForm(instance=user_rating)
+    
+    # Variant Logic (Fixed for Error 500)
     variants = product.variants.filter(is_active=True).prefetch_related('attribute_values__attribute')
     variant_attributes = {}
     variant_map = {}
+    
     if product.has_variants:
         for variant in variants:
-            variant_image = getattr(variant, 'image', None)
+            # Safer Image Handling
+            variant_image_url = ""
+            try:
+                if variant.image:
+                    variant_image_url = variant.image.url
+            except ValueError:
+                variant_image_url = "" # Handle missing file case
+
             temp_key = []
             for val in variant.attribute_values.all():
                 attr = val.attribute
                 if attr.id not in variant_attributes:
                     variant_attributes[attr.id] = {'attribute': attr, 'values': []}
+                
                 existing_ids = [v.id for v in variant_attributes[attr.id]['values']]
                 if val.id not in existing_ids:
-                    if variant_image: val.image_src = variant_image.url
+                    if variant_image_url: val.image_src = variant_image_url
                     variant_attributes[attr.id]['values'].append(val)
+                
                 temp_key.append(f"{attr.id}:{val.id}")
+            
             temp_key.sort()
             final_key = "|".join(temp_key)
-            variant_map[final_key] = {'id': variant.id, 'price': float(variant.get_price()), 'stock': variant.stock, 'image': variant_image.url if variant_image else ""}
-    context = {"product": product, "related_products": related_products, "user_rating": user_rating, "rating_form": rating_form, "variant_attributes": variant_attributes, "variant_map_json": json.dumps(variant_map)}
+            
+            variant_map[final_key] = {
+                'id': variant.id, 
+                'price': float(variant.get_price()), 
+                'stock': variant.stock, 
+                'image': variant_image_url
+            }
+
+    context = {
+        "product": product, 
+        "related_products": related_products, 
+        "user_rating": user_rating, 
+        "rating_form": rating_form, 
+        "variant_attributes": variant_attributes, 
+        "variant_map_json": json.dumps(variant_map)
+    }
     return render(request, "shop/product_detail.html", context)
 
+# ============================================================
+# CART LOGIC
+# ============================================================
 def _get_cart(request):
     if request.user.is_authenticated:
         cart, _ = Cart.objects.get_or_create(user=request.user)
@@ -148,6 +181,7 @@ def _get_cart(request):
     return GuestCart(cart_data)
 
 def cart_detail(request): return render(request, "shop/cart.html", {"cart": _get_cart(request)})
+
 def cart_add(request, product_id):
     product = get_object_or_404(Product, id=product_id, available=True)
     quantity = int(request.POST.get("quantity", 1) or 1)
@@ -155,6 +189,7 @@ def cart_add(request, product_id):
     variant_id = request.POST.get("variant_id")
     variant = None
     if variant_id: variant = get_object_or_404(ProductVariant, id=variant_id, product=product, is_active=True)
+    
     if request.user.is_authenticated:
         cart, _ = Cart.objects.get_or_create(user=request.user)
         item, created = CartItem.objects.get_or_create(cart=cart, product=product, variant=variant)
@@ -203,7 +238,7 @@ def cart_update(request, product_id):
     return redirect("shop:cart_detail")
 
 # ============================================================
-# CHECKOUT (FIXED: Manual = Lead, Auto = Purchase)
+# CHECKOUT & ORDER
 # ============================================================
 @csrf_exempt
 def checkout(request):
@@ -212,10 +247,12 @@ def checkout(request):
     if buy_now_id:
         request.session["buy_now_id"] = str(buy_now_id)
         if buy_now_variant_id: request.session["buy_now_variant_id"] = str(buy_now_variant_id)
+    
     buy_now_id = request.session.get("buy_now_id")
     buy_now_variant_id = request.session.get("buy_now_variant_id")
     product_for_buy_now = None
     variant_for_buy_now = None
+
     class BuyNowItem:
         def __init__(self, product, variant=None):
             self.product = product
@@ -224,10 +261,12 @@ def checkout(request):
         def get_unit_price(self): return self.variant.get_price() if self.variant else self.product.price
         @property
         def get_cost(self): return self.get_unit_price() * self.quantity
+
     class BuyNowCart:
         def __init__(self, product, variant=None): self.items = [BuyNowItem(product, variant)]
         def get_total_price(self): return self.items[0].get_cost
         def get_total_items(self): return 1
+
     if buy_now_id:
         product_for_buy_now = get_object_or_404(Product, id=buy_now_id, available=True)
         if buy_now_variant_id:
@@ -304,7 +343,7 @@ def checkout(request):
             if request.user.is_authenticated: CartItem.objects.filter(cart__user=request.user).delete()
             else: request.session["guest_cart"] = {}
 
-        # Server-side Event (Already correct)
+        # Server-side Event
         config = SiteSettings.objects.first()
         if config:
             if config.facebook_pixel_mode == 'automatic':
@@ -313,7 +352,6 @@ def checkout(request):
                 send_facebook_lead_event(order)
 
         if order.payment_method == "cod":
-            # [FIX] Pass config to template so JS knows what to fire
             return render(request, "shop/payment_success.html", {"order": order, "config": config})
 
         request.session["order_id"] = order.id
@@ -323,7 +361,6 @@ def checkout(request):
 
 def payment_process(request): return redirect("shop:checkout") 
 
-# [FIX] Payment Success also needs config
 def payment_success(request, order_id): 
     order = get_object_or_404(Order, id=order_id)
     config = SiteSettings.objects.first()
