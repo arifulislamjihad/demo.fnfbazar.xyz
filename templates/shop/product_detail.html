@@ -7,23 +7,9 @@
 <style>
     /* --- Amazon Style Variant & Gallery CSS --- */
     .variant-input { position: absolute; opacity: 0; cursor: pointer; }
-
-    .variant-text-box {
-        display: inline-block; padding: 8px 14px; border: 1px solid #d1d5db;
-        border-radius: 3px; background-color: #fff; color: #111; font-size: 13px;
-        font-weight: 500; cursor: pointer; min-width: 40px; text-align: center;
-        margin: 0 6px 6px 0; transition: all 0.1s;
-    }
-    .variant-input:checked + .variant-text-box {
-        border-color: #e77600; background-color: #fff7e6; color: #e77600;
-        font-weight: bold; box-shadow: 0 0 0 1px #e77600;
-    }
-
-    .variant-img-box {
-        display: inline-flex; width: 45px; height: 45px; border: 1px solid #d1d5db;
-        border-radius: 3px; padding: 2px; cursor: pointer; margin: 0 6px 6px 0;
-        overflow: hidden; align-items: center; justify-content: center;
-    }
+    .variant-text-box { display: inline-block; padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 3px; background-color: #fff; color: #111; font-size: 13px; font-weight: 500; cursor: pointer; min-width: 40px; text-align: center; margin: 0 6px 6px 0; transition: all 0.1s; }
+    .variant-input:checked + .variant-text-box { border-color: #e77600; background-color: #fff7e6; color: #e77600; font-weight: bold; box-shadow: 0 0 0 1px #e77600; }
+    .variant-img-box { display: inline-flex; width: 45px; height: 45px; border: 1px solid #d1d5db; border-radius: 3px; padding: 2px; cursor: pointer; margin: 0 6px 6px 0; overflow: hidden; align-items: center; justify-content: center; }
     .variant-img-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
     .variant-color-fill { width: 100%; height: 100%; border-radius: 1px; }
     .variant-input:checked + .variant-img-box { border-color: #e77600; box-shadow: 0 0 0 2px #e77600; }
@@ -33,7 +19,8 @@
     .thumbnail-item { width: 60px; height: 60px; border: 1px solid #d1d5db; border-radius: 4px; padding: 2px; cursor: pointer; overflow: hidden; position: relative; flex-shrink: 0; }
     .thumbnail-item:hover, .thumbnail-item.active { border-color: #e77600; box-shadow: 0 0 0 1px #e77600; }
     .thumbnail-item img { width: 100%; height: 100%; object-fit: contain; }
-    .main-media-area { flex: 1; display: flex; justify-content: center; align-items: center; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #fff; min-height: 300px; }
+    
+    .main-media-area { flex: 1; display: flex; justify-content: center; align-items: center; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #fff; min-height: 300px; position: relative; }
     
     @media (min-width: 768px) {
         .gallery-container { flex-direction: row; }
@@ -50,7 +37,7 @@
     .btn-amazon-orange { background: #ffa41c; border: 1px solid #ff8f00; border-radius: 20px; width: 100%; padding: 8px; font-weight: 500; font-size: 13px; cursor: pointer; }
     .btn-amazon-orange:hover { background: #fa8900; }
     .btn-disabled { opacity: 0.5; cursor: not-allowed !important; background: #e7e7e7 !important; }
-
+    
     .ck-content { color: #374151; font-size: 0.95rem; line-height: 1.6; }
     .ck-content ul { list-style-type: disc !important; margin-left: 20px !important; padding-left: 10px !important; margin-bottom: 10px; }
     .ck-content ol { list-style-type: decimal !important; margin-left: 20px !important; padding-left: 10px !important; margin-bottom: 10px; }
@@ -63,27 +50,62 @@
 
 <div class="max-w-[1400px] mx-auto px-4 py-4">
     <div class="flex flex-col md:flex-row gap-8">
+        
         <div class="w-full md:w-5/12">
             <div class="md:sticky md:top-4">
                 <div class="gallery-container">
+                    
                     <div class="thumbnail-list">
                         {% if product.image %}
                         <div class="thumbnail-item active" onclick="showMedia('image', '{{ product.image.url }}', this)">
                             <img src="{{ product.image.url }}" alt="Main">
                         </div>
                         {% endif %}
-                        
+
                         {% for item in product.images.all %}
-                            {% if item.image %}
-                            <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
-                                <img src="{{ item.image.url }}" alt="Gallery">
-                            </div>
+                            
+                            {% if item.video_file %} <div class="thumbnail-item" onclick="showMedia('video', '{{ item.video_file.url }}', this)">
+                                    {% if item.image %}
+                                        <img src="{{ item.image.url }}">
+                                    {% else %}
+                                        <div class="w-full h-full bg-gray-200 flex items-center justify-center"><i class="fas fa-video"></i></div>
+                                    {% endif %}
+                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
+                                </div>
+                            
+                            {% elif item.youtube_url %} <div class="thumbnail-item" onclick="showMedia('youtube', '{{ item.get_youtube_embed_url }}', this)">
+                                    {% if item.image %}
+                                        <img src="{{ item.image.url }}">
+                                    {% else %}
+                                        <div class="w-full h-full bg-red-100 flex items-center justify-center"><i class="fab fa-youtube text-red-600"></i></div>
+                                    {% endif %}
+                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
+                                </div>
+
+                            {% elif item.image %} <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
+                                    <img src="{{ item.image.url }}" alt="Gallery">
+                                </div>
                             {% endif %}
+                            
                         {% endfor %}
                     </div>
+
                     <div class="main-media-area">
-                        <img id="main-product-image" src="{% if product.image %}{{ product.image.url }}{% endif %}" class="w-full h-auto object-contain max-h-[400px] md:max-h-[550px]">
+                        <img id="main-product-image" 
+                             src="{% if product.image %}{{ product.image.url }}{% endif %}" 
+                             class="w-full h-auto object-contain max-h-[400px] md:max-h-[550px]">
+                        
+                        <video id="main-product-video" controls class="w-full max-h-[400px] md:max-h-[550px] hidden-media">
+                            <source id="video-source" src="" type="video/mp4">
+                        </video>
+
+                        <iframe id="main-youtube-frame" class="w-full h-[300px] md:h-[400px] hidden-media" 
+                                src="" frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -159,12 +181,38 @@
 {{ block.super }}
 
 <script>
-    // Gallery Logic
-    function showMedia(type, url, element) { 
-        const imgEl = document.getElementById("main-product-image"); 
-        if(imgEl && url) { imgEl.src = url; }
-        document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active')); 
-        if(element) element.classList.add('active'); 
+    // --- 🎥 Advanced Media Handler (Image, Video, YouTube) ---
+    function showMedia(type, url, element) {
+        const imgEl = document.getElementById("main-product-image");
+        const vidEl = document.getElementById("main-product-video");
+        const vidSrc = document.getElementById("video-source");
+        const ytEl = document.getElementById("main-youtube-frame");
+
+        // Reset all
+        imgEl.classList.add('hidden-media');
+        vidEl.classList.add('hidden-media');
+        ytEl.classList.add('hidden-media');
+        vidEl.pause();
+        ytEl.src = ""; 
+
+        if (type === 'video') {
+            vidEl.classList.remove('hidden-media');
+            vidSrc.src = url; 
+            vidEl.load(); 
+            vidEl.play();
+        } else if (type === 'youtube') {
+            ytEl.classList.remove('hidden-media');
+            const separator = url.includes('?') ? '&' : '?';
+            ytEl.src = url + separator + "autoplay=1&mute=1"; 
+        } else {
+            // Default: Image
+            imgEl.classList.remove('hidden-media');
+            if(url) imgEl.src = url;
+        }
+
+        // Highlight Active Thumbnail
+        document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active'));
+        if(element) element.classList.add('active');
     }
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -185,7 +233,6 @@
         function updateVariant() {
             let parts = [];
             let allSelected = true;
-            
             attributeGroups.forEach(g => {
                 let c = g.querySelector("input:checked");
                 if (c) parts.push(g.dataset.attributeId + ":" + c.value);
@@ -202,7 +249,9 @@
             const variant = variantMap[key];
 
             if (variant && variant.stock > 0) {
+                // Image Update if exists
                 if (variant.image) { showMedia('image', variant.image, null); }
+                
                 if(priceEl) priceEl.textContent = variant.price;
                 if(buyBoxPriceEl) buyBoxPriceEl.textContent = variant.price;
                 
