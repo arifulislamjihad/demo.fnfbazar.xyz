@@ -158,10 +158,10 @@
         <div onclick="window.location.href='{% url 'shop:product_detail' product.slug %}'" 
              class="bg-white rounded-xl shadow-lg hover:-translate-y-2 transition duration-300 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-purple-200 group cursor-pointer">
 
-            <div class="h-52 w-full p-2 bg-white flex items-center justify-center relative overflow-hidden">
+            <div class="h-52 w-full bg-white relative overflow-hidden">
                 {% if product.image %}
                 <img src="{{ product.image.url }}" 
-                     class="h-full w-auto max-w-full object-contain group-hover:scale-110 transition duration-500"
+                     class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
                      alt="{{ product.name }}">
                 {% else %}
                 <div class="flex items-center justify-center h-full w-full bg-gray-100 text-gray-300">
