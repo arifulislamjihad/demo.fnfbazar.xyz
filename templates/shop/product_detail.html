@@ -28,196 +28,67 @@
     .variant-color-fill { width: 100%; height: 100%; border-radius: 1px; }
     .variant-input:checked + .variant-img-box { border-color: #e77600; box-shadow: 0 0 0 2px #e77600; }
     
-    /* --- RESPONSIVE GALLERY CSS (UPDATED) --- */
-    .gallery-container { 
-        display: flex; 
-        gap: 15px; 
-        /* Mobile Default: Stacked (Thumbnails below image) */
-        flex-direction: column-reverse; 
-    }
-
-    .thumbnail-list { 
-        display: flex; 
-        gap: 10px; 
-        /* Mobile Default: Horizontal Row */
-        flex-direction: row; 
-        width: 100%; 
-        overflow-x: auto; /* Allow scrolling if many images */
-        justify-content: center;
-    }
-
-    .thumbnail-item {
-        width: 60px; /* Fixed width for thumbnails */
-        height: 60px; 
-        border: 1px solid #d1d5db; 
-        border-radius: 4px;
-        padding: 2px; 
-        cursor: pointer; 
-        overflow: hidden; 
-        position: relative;
-        flex-shrink: 0; /* Prevent squeezing on mobile */
-    }
-
+    .gallery-container { display: flex; gap: 15px; flex-direction: column-reverse; }
+    .thumbnail-list { display: flex; gap: 10px; flex-direction: row; width: 100%; overflow-x: auto; justify-content: center; }
+    .thumbnail-item { width: 60px; height: 60px; border: 1px solid #d1d5db; border-radius: 4px; padding: 2px; cursor: pointer; overflow: hidden; position: relative; flex-shrink: 0; }
     .thumbnail-item:hover, .thumbnail-item.active { border-color: #e77600; box-shadow: 0 0 0 1px #e77600; }
     .thumbnail-item img { width: 100%; height: 100%; object-fit: contain; }
+    .main-media-area { flex: 1; display: flex; justify-content: center; align-items: center; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #fff; min-height: 300px; }
     
-    .main-media-area {
-        flex: 1; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center;
-        border: 1px solid #eee; 
-        border-radius: 8px; 
-        padding: 10px; 
-        background: #fff;
-        min-height: 300px; /* Smaller height for mobile */
-    }
-
-    /* --- DESKTOP OVERRIDES (Screens larger than 768px) --- */
     @media (min-width: 768px) {
-        .gallery-container { 
-            flex-direction: row; /* Back to Side-by-Side */
-        }
-        .thumbnail-list { 
-            flex-direction: column; /* Back to Vertical Column */
-            width: 60px; 
-            overflow-x: visible;
-            justify-content: flex-start;
-        }
-        .thumbnail-item {
-            width: 100%; /* Fill container width */
-        }
-        .main-media-area {
-            min-height: 400px; /* Original height for desktop */
-        }
+        .gallery-container { flex-direction: row; }
+        .thumbnail-list { flex-direction: column; width: 60px; overflow-x: visible; justify-content: flex-start; }
+        .thumbnail-item { width: 100%; }
+        .main-media-area { min-height: 400px; }
     }
 
-    .play-icon {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        color: rgba(0,0,0,0.7); font-size: 20px; background: rgba(255,255,255,0.6);
-        border-radius: 50%; width: 25px; height: 25px; display: flex;
-        align-items: center; justify-content: center;
-    }
-
+    .play-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(0,0,0,0.7); font-size: 20px; background: rgba(255,255,255,0.6); border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; }
     .hidden-media { display: none !important; }
 
-    /* Buttons */
     .btn-amazon-yellow { background: #ffd814; border: 1px solid #fcd200; border-radius: 20px; width: 100%; padding: 8px; font-weight: 500; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
     .btn-amazon-yellow:hover { background: #f7ca00; }
     .btn-amazon-orange { background: #ffa41c; border: 1px solid #ff8f00; border-radius: 20px; width: 100%; padding: 8px; font-weight: 500; font-size: 13px; cursor: pointer; }
     .btn-amazon-orange:hover { background: #fa8900; }
     .btn-disabled { opacity: 0.5; cursor: not-allowed !important; background: #e7e7e7 !important; }
 
-    /* --- CKEDITOR CONTENT FIX --- */
-    .ck-content {
-        color: #374151; /* gray-700 */
-        font-size: 0.95rem;
-        line-height: 1.6;
-    }
-    .ck-content ul {
-        list-style-type: disc !important;
-        margin-left: 20px !important;
-        padding-left: 10px !important;
-        margin-bottom: 10px;
-    }
-    .ck-content ol {
-        list-style-type: decimal !important;
-        margin-left: 20px !important;
-        padding-left: 10px !important;
-        margin-bottom: 10px;
-    }
-    .ck-content li {
-        margin-bottom: 4px;
-    }
-    .ck-content strong, .ck-content b {
-        font-weight: bold !important;
-        color: #111;
-    }
-    .ck-content em, .ck-content i {
-        font-style: italic !important;
-    }
-    .ck-content h1, .ck-content h2, .ck-content h3, .ck-content h4 {
-        font-weight: bold;
-        margin-top: 15px;
-        margin-bottom: 10px;
-        display: block;
-    }
-    .ck-content p {
-        margin-bottom: 10px;
-    }
-    .ck-content a {
-        color: #2563eb;
-        text-decoration: underline;
-    }
+    .ck-content { color: #374151; font-size: 0.95rem; line-height: 1.6; }
+    .ck-content ul { list-style-type: disc !important; margin-left: 20px !important; padding-left: 10px !important; margin-bottom: 10px; }
+    .ck-content ol { list-style-type: decimal !important; margin-left: 20px !important; padding-left: 10px !important; margin-bottom: 10px; }
+    .ck-content strong { font-weight: bold !important; color: #111; }
 </style>
 
 <div class="max-w-[1400px] mx-auto px-4 py-2 text-xs text-gray-500">
-    <a href="{% url 'shop:home' %}" class="hover:underline">Home</a> / 
-    <span class="text-gray-800 font-bold truncate">{{ product.name }}</span>
+    <a href="{% url 'shop:home' %}" class="hover:underline">Home</a> / <span class="text-gray-800 font-bold truncate">{{ product.name }}</span>
 </div>
 
 <div class="max-w-[1400px] mx-auto px-4 py-4">
     <div class="flex flex-col md:flex-row gap-8">
-        
         <div class="w-full md:w-5/12">
-            <div class="md:sticky md:top-4"> <div class="gallery-container">
-                    
+            <div class="md:sticky md:top-4">
+                <div class="gallery-container">
                     <div class="thumbnail-list">
                         {% if product.image %}
                         <div class="thumbnail-item active" onclick="showMedia('image', '{{ product.image.url }}', this)">
                             <img src="{{ product.image.url }}" alt="Main">
                         </div>
                         {% endif %}
-
                         {% for item in product.images.all %}
-                            {% if item.video_file %}
-                                <div class="thumbnail-item" onclick="showMedia('video', '{{ item.video_file.url }}', this)">
-                                    {% if item.image %}<img src="{{ item.image.url }}">{% else %}<div class="w-full h-full bg-gray-200 flex items-center justify-center"><i class="fas fa-video"></i></div>{% endif %}
-                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
-                                </div>
-                            
-                            {% elif item.youtube_url %}
-                                <div class="thumbnail-item" onclick="showMedia('youtube', '{{ item.get_youtube_embed_url }}', this)">
-                                    {% if item.image %}<img src="{{ item.image.url }}">{% else %}<div class="w-full h-full bg-red-100 flex items-center justify-center"><i class="fab fa-youtube text-red-600"></i></div>{% endif %}
-                                    <div class="play-icon"><i class="fas fa-play" style="font-size: 10px;"></i></div>
-                                </div>
-
-                            {% else %}
-                                <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
-                                    <img src="{{ item.image.url }}" alt="Gallery">
-                                </div>
-                            {% endif %}
+                        <div class="thumbnail-item" onclick="showMedia('image', '{{ item.image.url }}', this)">
+                            <img src="{{ item.image.url }}" alt="Gallery">
+                        </div>
                         {% endfor %}
                     </div>
-
                     <div class="main-media-area">
-                        <img id="main-product-image" 
-                             src="{% if product.image %}{{ product.image.url }}{% endif %}" 
-                             class="w-full h-auto object-contain max-h-[400px] md:max-h-[550px] transition-opacity duration-300">
-                        
-                        <video id="main-product-video" controls class="w-full max-h-[400px] md:max-h-[550px] hidden-media">
-                            <source id="video-source" src="" type="video/mp4">
-                        </video>
-
-                        <iframe id="main-youtube-frame" class="w-full h-[300px] md:h-[400px] hidden-media" 
-                                src="" frameborder="0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowfullscreen>
-                        </iframe>
+                        <img id="main-product-image" src="{% if product.image %}{{ product.image.url }}{% endif %}" class="w-full h-auto object-contain max-h-[400px] md:max-h-[550px]">
                     </div>
-
                 </div>
             </div>
         </div>
 
         <div class="w-full md:w-4/12">
             <h1 class="text-2xl font-medium text-gray-900 mb-2">{{ product.name }}</h1>
-            
             <div class="border-b border-gray-200 pb-4 mb-4">
-                <div class="flex items-baseline gap-2">
-                    <span class="text-red-700 text-2xl font-light">-15%</span>
-                    <span class="text-3xl font-medium text-gray-900">৳<span id="product-price">{{ product.price }}</span></span>
-                </div>
+                <span class="text-3xl font-medium text-gray-900">৳<span id="product-price">{{ product.price }}</span></span>
             </div>
 
             {% if product.has_variants %}
@@ -246,11 +117,8 @@
             {% endif %}
 
             <div class="mt-4">
-                <h3 class="font-bold text-sm mb-2 text-gray-800">Product Description</h3>
-                
-                <div class="ck-content">
-                    {{ product.description|safe }}
-                </div>
+                <h3 class="font-bold text-sm mb-2 text-gray-800">Description</h3>
+                <div class="ck-content">{{ product.description|safe }}</div>
             </div>
         </div>
 
@@ -266,7 +134,7 @@
                 </div>
 
                 {% if product.stock > 0 %}
-                <form action="{% url 'shop:cart_add' product.id %}" method="post">
+                <form action="{% url 'shop:cart_add' product.id %}" method="post" id="pixel-cart-form">
                     {% csrf_token %}
                     <input type="hidden" name="variant_id" id="variant-id-input">
                     <button type="submit" id="add-to-cart-main" class="btn-amazon-yellow {% if product.has_variants %}btn-disabled{% endif %}" {% if product.has_variants %}disabled{% endif %}>Add to Cart</button>
@@ -288,47 +156,17 @@
 {{ block.super }}
 
 <script>
-    function showMedia(type, url, element) {
-        const imgEl = document.getElementById("main-product-image");
-        const vidEl = document.getElementById("main-product-video");
-        const vidSrc = document.getElementById("video-source");
-        const ytEl = document.getElementById("main-youtube-frame");
-
-        // Hide all first
-        imgEl.classList.add('hidden-media');
-        vidEl.classList.add('hidden-media');
-        ytEl.classList.add('hidden-media');
-        
-        // Stop Players
-        vidEl.pause();
-        ytEl.src = ""; // Stop previous YouTube video
-
-        if (type === 'video') {
-            vidEl.classList.remove('hidden-media');
-            vidSrc.src = url;
-            vidEl.load();
-            vidEl.play();
-        } 
-        else if (type === 'youtube') {
-            ytEl.classList.remove('hidden-media');
-            
-            // [SMART FIX] Check if URL already has '?' to decide between '?' and '&'
-            const separator = url.includes('?') ? '&' : '?';
-            ytEl.src = url + separator + "autoplay=1&mute=1"; 
-        } 
-        else {
-            imgEl.classList.remove('hidden-media');
-            imgEl.src = url;
-        }
-
-        document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active'));
-        if(element) element.classList.add('active');
+    // Gallery Logic
+    function showMedia(type, url, element) { 
+        const imgEl = document.getElementById("main-product-image"); 
+        imgEl.src = url; 
+        document.querySelectorAll('.thumbnail-item').forEach(el => el.classList.remove('active')); 
+        if(element) element.classList.add('active'); 
     }
-</script>
 
-{% if product.has_variants %}
-<script>
     document.addEventListener("DOMContentLoaded", function () {
+        // --- 🚀 Amazon Style Variant Selection Logic (RESTORED) ---
+        {% if product.has_variants %}
         const variantMap = {{ variant_map_json|default:"{}"|safe }};
         const attributeGroups = document.querySelectorAll(".attribute-group");
         const allRadioInputs = document.querySelectorAll(".variant-input");
@@ -344,6 +182,7 @@
         function updateVariant() {
             let parts = [];
             let allSelected = true;
+            
             attributeGroups.forEach(g => {
                 let c = g.querySelector("input:checked");
                 if (c) parts.push(g.dataset.attributeId + ":" + c.value);
@@ -360,22 +199,57 @@
             const variant = variantMap[key];
 
             if (variant && variant.stock > 0) {
-                if (variant.image) {
-                    showMedia('image', variant.image, null); 
-                }
+                // Update UI with variant details
+                if (variant.image) { showMedia('image', variant.image, null); }
                 if(priceEl) priceEl.textContent = variant.price;
                 if(buyBoxPriceEl) buyBoxPriceEl.textContent = variant.price;
-                if(stockLabel) { stockLabel.textContent = "In Stock."; stockLabel.className = "text-lg text-green-700 font-medium"; }
+                
+                stockLabel.textContent = "In Stock.";
+                stockLabel.className = "text-lg text-green-700 font-medium";
+                
                 if(hiddenInput) hiddenInput.value = variant.id;
                 if(buyNowVariantInput) buyNowVariantInput.value = variant.id;
+                
                 [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.remove("btn-disabled"); b.disabled=false; }});
             } else {
-                if(stockLabel) { stockLabel.textContent = "Currently Unavailable"; stockLabel.className = "text-lg text-red-600 font-medium"; }
+                stockLabel.textContent = "Currently Unavailable";
+                stockLabel.className = "text-lg text-red-600 font-medium";
                 [addBtn, buyNowBtn].forEach(b => { if(b){ b.classList.add("btn-disabled"); b.disabled=true; }});
             }
         }
         allRadioInputs.forEach(r => r.addEventListener("change", updateVariant));
+        {% endif %}
+
+        // --- 📊 Facebook Pixel Events (STRICT LOGIC) ---
+        {% if site_settings.facebook_pixel_id %}
+        if (typeof fbq !== 'undefined') {
+            // 1. ViewContent
+            fbq('track', 'ViewContent', {
+                content_name: '{{ product.name|escapejs }}',
+                content_ids: ['{{ product.id }}'],
+                content_type: 'product',
+                value: {{ product.price|floatformat:2 }},
+                currency: 'BDT',
+                content_category: '{{ product.category.name|escapejs }}'
+            });
+            console.log("✅ Pixel: ViewContent Fired");
+
+            // 2. AddToCart
+            const cartForm = document.getElementById("pixel-cart-form");
+            if (cartForm) {
+                cartForm.addEventListener("submit", function() {
+                    fbq('track', 'AddToCart', {
+                        content_name: '{{ product.name|escapejs }}',
+                        content_ids: ['{{ product.id }}'],
+                        content_type: 'product',
+                        value: {{ product.price|floatformat:2 }},
+                        currency: 'BDT'
+                    });
+                    console.log("✅ Pixel: AddToCart Fired");
+                });
+            }
+        }
+        {% endif %}
     });
 </script>
-{% endif %}
 {% endblock %}

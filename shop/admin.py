@@ -16,7 +16,8 @@ from .models import (
     DeliveryOption, OrderNote, ProductImage, VendorWebhook
 )
 from .steadfast import send_order_to_steadfast, refresh_steadfast_status
-from .utils import get_customer_fraud_report, send_facebook_purchase_event
+from .utils import get_customer_fraud_report 
+# Note: send_facebook_purchase_event is handled by Signals now, removed from here to prevent duplicates
 
 @admin.register(DeliveryOption)
 class DeliveryOptionAdmin(admin.ModelAdmin):
@@ -120,11 +121,9 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.action(description="Mark selected orders as Confirmed")
     def make_confirmed_action(self, request, queryset):
         s = 0
-        config = SiteSettings.objects.first()
         for order in queryset:
             if order.status != 'confirmed':
-                if config and config.facebook_pixel_mode == 'manual':
-                    send_facebook_purchase_event(order)
+                # Just change status and save. Signals will handle the FB Event.
                 order.status = 'confirmed'
                 order.save()
                 s += 1
@@ -134,13 +133,7 @@ class OrderAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.vendor = request.user
         
-        if change:
-            old_obj = Order.objects.get(pk=obj.pk)
-            config = SiteSettings.objects.first()
-            if old_obj.status != 'confirmed' and obj.status == 'confirmed':
-                if config and config.facebook_pixel_mode == 'manual':
-                    send_facebook_purchase_event(obj)
-                    
+        # We don't need manual logic here. Post_save signal in signals.py handles it.
         super().save_model(request, obj, form, change)
 
     @admin.action(description="Send to Steadfast")

@@ -1,10 +1,12 @@
 import json
 import hashlib
 import requests
+import time
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
+from .models import SiteSettings
 
 # ==========================================
 # SSLCOMMERZ PAYMENT
@@ -30,7 +32,6 @@ def generate_sslcommerz_payment(order, request):
         'product_category': 'General',
         'product_profile': 'general',
     }
-
     try:
         response = requests.post(settings.SSLCOMMERZ_PAYMENT_URL, data=post_data)
         return json.loads(response.text)
@@ -43,7 +44,6 @@ def generate_sslcommerz_payment(order, request):
 def send_order_confirmation_email(order):
     if not hasattr(order, 'email') or not order.email:
         return
-        
     subject = f"Order Confirmation - Order #{order.id}"
     message = render_to_string('shop/email/order_confirmation.html', {'order': order})
     to = order.email
@@ -52,43 +52,33 @@ def send_order_confirmation_email(order):
     send_email.send()
 
 # ==========================================
-# FACEBOOK CAPI - PURCHASE EVENT
+# FACEBOOK CAPI (FIXED WITH DEDUPLICATION)
 # ==========================================
 def send_facebook_purchase_event(order):
-    from .models import SiteSettings
-    
-    print(f"\n--- [DEBUG] Starting FB Purchase Event for Order #{order.id} ---")
-
+    print(f"\n🚀 [DEBUG] Starting FB Purchase Event for Order #{order.id}")
     config = SiteSettings.objects.first()
-    if not config or not config.facebook_pixel_id or not config.facebook_access_token:
-        print("--- [DEBUG] Error: FB Config Missing ---")
-        return False, "FB Config Missing"
-
-    payload = _build_fb_payload(order, config, "Purchase")
+    if not _validate_config(config): return False, "Config Missing"
+    # Purchase Event ID is crucial for avoiding duplicates
+    payload = _build_fb_payload(order, config, "Purchase", event_id=f"purchase_{order.id}")
     return _send_to_facebook(payload, config)
 
-# ==========================================
-# FACEBOOK CAPI - LEAD EVENT (NEW)
-# ==========================================
 def send_facebook_lead_event(order):
-    """
-    Sends a 'Lead' event when order is placed in Manual Mode
-    """
-    from .models import SiteSettings
-    
-    print(f"\n--- [DEBUG] Starting FB Lead Event for Order #{order.id} ---")
-
+    print(f"\n🚀 [DEBUG] Starting FB Lead Event for Order #{order.id}")
     config = SiteSettings.objects.first()
-    if not config or not config.facebook_pixel_id or not config.facebook_access_token:
-        print("--- [DEBUG] Error: FB Config Missing ---")
-        return False, "FB Config Missing"
-
-    payload = _build_fb_payload(order, config, "Lead")
+    if not _validate_config(config): return False, "Config Missing"
+    # Lead Event ID
+    payload = _build_fb_payload(order, config, "Lead", event_id=f"lead_{order.id}")
     return _send_to_facebook(payload, config)
 
-#Helper to build payload to avoid code duplication
-def _build_fb_payload(order, config, event_name):
-    phone = str(order.phone).strip()
+def _validate_config(config):
+    if not config or not config.facebook_pixel_id or not config.facebook_access_token:
+        print("❌ [DEBUG] Error: FB Pixel ID or Access Token Missing")
+        return False
+    return True
+
+def _build_fb_payload(order, config, event_name, event_id=None):
+    # Standardize Phone
+    phone = str(order.phone).strip().replace("-", "").replace(" ", "")
     if phone.startswith('0'): phone = '88' + phone
     elif not phone.startswith('88'): phone = '88' + phone 
     
@@ -100,48 +90,58 @@ def _build_fb_payload(order, config, event_name):
         "external_id": [str(order.id)]
     }
     
-    if order.fbp: user_data["fbp"] = order.fbp
-    if order.fbc: user_data["fbc"] = order.fbc
-    if order.ip_address: user_data["client_ip_address"] = order.ip_address
-    if order.user_agent: user_data["client_user_agent"] = order.user_agent
+    # Custom Data
+    custom_data = {
+        "currency": "BDT",
+        "value": float(order.get_total_cost()),
+        "order_id": str(order.id),
+        "content_ids": [str(item.product.id) for item in order.items.all()],
+        "content_type": "product",
+        "num_items": order.items.count()
+    }
 
     event_data = {
         "event_name": event_name,
         "event_time": int(timezone.now().timestamp()),
         "action_source": "website",
         "user_data": user_data,
-        "custom_data": {
-            "currency": "BDT",
-            "value": float(order.get_total_cost()),
-            "order_id": str(order.id),
-            "content_ids": [str(item.product.id) for item in order.items.all()],
-            "content_type": "product",
-            "num_items": order.items.count()
-        }
+        "custom_data": custom_data
     }
+
+    # Add Event ID for Deduplication
+    if event_id:
+        event_data["event_id"] = event_id
+
+    payload = { "data": [event_data] }
     
-    payload = {"data": [event_data], "access_token": config.facebook_access_token}
+    # Test Event Code logic
     if config.facebook_test_event_code:
-        payload["test_event_code"] = config.facebook_test_event_code.strip()
+        code = config.facebook_test_event_code.strip()
+        if code:
+            payload["test_event_code"] = code
+            print(f"🔹 [DEBUG] Using Test Code: {code}")
         
     return payload
 
 def _send_to_facebook(payload, config):
     url = f"https://graph.facebook.com/v19.0/{config.facebook_pixel_id}/events"
+    params = { "access_token": config.facebook_access_token }
+    
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, params=params, json=payload, timeout=10)
+        data = response.json()
         if response.status_code == 200:
-            print(f"--- [DEBUG] FB Event Sent Successfully ---")
+            print(f"✅ [SUCCESS] FB Event Sent! Trace ID: {data.get('fbtrace_id')}")
             return True, "Event Sent"
         else:
-            print(f"--- [DEBUG] FB Error: {response.text} ---")
-            return False, response.text
+            print(f"❌ [ERROR] FB API Response: {data}")
+            return False, str(data)
     except Exception as e:
-        print(f"--- [DEBUG] EXCEPTION: {str(e)} ---")
+        print(f"❌ [EXCEPTION] {e}")
         return False, str(e)
 
 # ==========================================
-# FRAUD CHECKER API
+# FRAUD CHECKER
 # ==========================================
 def get_customer_fraud_report(phone):
     if not phone: return {"error": "No Phone Number"}

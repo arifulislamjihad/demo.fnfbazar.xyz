@@ -1,9 +1,8 @@
-from django.conf import settings
 from .models import Cart, SiteSettings
 
 def cart_items_count(request):
     """
-    Navbar e cart icon er পাশে মোট কতটি item আছে সেটা দেখানোর জন্য।
+    Navbar e cart icon er count show korar jonno.
     """
     if request.user.is_authenticated:
         try:
@@ -17,22 +16,24 @@ def cart_items_count(request):
     count = sum(guest_cart.values())
     return {"cart_items_count": count}
 
-
 def site_settings(request):
     """
-    সব template এ site_settings নামে object পাঠায়,
-    যাতে logo এবং site_name সহজে ব্যবহার করা যায়।
+    Ei function ti SiteSettings theke sob data (Logo, Pixel ID, Test Code)
+    ekbare 'site_settings' variable hisebe template e pathay.
     """
     try:
+        # Get the first settings object (Latest updated one is better, but .first() is standard)
         settings_obj = SiteSettings.objects.first()
     except:
         settings_obj = None
+        
     return {"site_settings": settings_obj}
-
 
 def facebook_pixel(request):
     """
-    ডাটাবেস থেকে FACEBOOK_PIXEL_ID এবং TEST_EVENT_CODE নিয়ে সব টেমপ্লেটে পাঠায়।
+    [OPTIONAL] Jorpurbo pixel id pathano jodi 'site_settings' fail kore.
+    Tobe base.html e amra 'site_settings' use korchi, tai eta redundant.
+    Tobuo rekhe dilam jate existing logic break na hoy.
     """
     config = SiteSettings.objects.first()
     pixel_id = ""

@@ -5,4 +5,4 @@ class ShopConfig(AppConfig):
     name = 'shop'
 
     def ready(self):
-        import shop.signals  # সিগন্যাল কানেক্ট করার জন্য এই লাইনটি জরুরি
+        import shop.signals  # সিগন্যাল ফাইলটি কানেক্ট করা হলো

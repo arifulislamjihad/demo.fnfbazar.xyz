@@ -1,85 +1,154 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Payment Successful | E-Shop{% endblock %}
+{% block title %}Order Confirmed | {{ site_settings.site_name }}{% endblock %}
 
 {% block content %}
-<div class="card text-center py-5 my-5">
-    <div class="card-body">
-        <i class="fas fa-check-circle fa-5x text-success mb-3"></i>
-        <h1 class="mb-3">Payment Successful!</h1>
-        <p class="lead mb-4">Thank you for your purchase. Your order #{{ order.id }} has been confirmed.</p>
-        <p class="mb-4">A confirmation email has been sent to {{ order.email }}</p>
-        
-        {% if order.transaction_id %}
-        <p class="mb-5">Your transaction ID: <strong>{{ order.transaction_id }}</strong></p>
-        {% endif %}
+<div class="max-w-4xl mx-auto py-12 px-4">
+    <div class="text-center mb-10">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4 text-green-600">
+            <i class="fas fa-check text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-extrabold text-gray-900">Thank You for Your Order!</h1>
+        <p class="text-lg text-gray-600 mt-2">Your order <strong>#{{ order.id }}</strong> has been placed successfully.</p>
+        <p class="text-sm text-gray-400 mt-1">A confirmation details will be available in your profile.</p>
+    </div>
 
-        <div class="d-grid gap-2 col-lg-6 mx-auto">
-            <a href="{% url 'shop:profile' %}" class="btn btn-primary">View Your Orders</a>
-            <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary">Continue Shopping</a>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="md:col-span-2 space-y-6">
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <div class="p-6 border-b border-gray-50 bg-gray-50/50">
+                    <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-box text-purple-600"></i> Order Items
+                    </h3>
+                </div>
+                <div class="divide-y divide-gray-100">
+                    {% for item in order.items.all %}
+                    <div class="p-6 flex items-center gap-4">
+                        <div class="w-16 h-16 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 border border-gray-100">
+                            {% if item.product.image %}
+                                <img src="{{ item.product.image.url }}" class="w-full h-full object-cover">
+                            {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-300">
+                                    <i class="fas fa-image text-2xl"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-gray-800">{{ item.product.name }}</h4>
+                            <p class="text-xs text-gray-500">
+                                {% if item.variant %}{{ item.variant }} <span class="mx-1">|</span>{% endif %} Qty: {{ item.quantity }}
+                            </p>
+                        </div>
+                        <div class="text-sm font-bold text-gray-900">
+                            ৳{{ item.get_cost }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="p-6 bg-gray-50/30 space-y-2 border-t border-gray-100">
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>Subtotal</span>
+                        <span>৳{{ order.get_subtotal }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>Delivery Charge</span>
+                        <span>৳{{ order.delivery_charge }}</span>
+                    </div>
+                    <div class="flex justify-between text-lg font-extrabold text-gray-900 pt-2 border-t border-dashed border-gray-200 mt-2">
+                        <span>Total Paid</span>
+                        <span class="text-purple-600">৳{{ order.get_total_cost }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+                <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                    <i class="fas fa-truck text-purple-600"></i> Shipping Details
+                </h3>
+                <div class="text-sm space-y-3">
+                    <div>
+                        <p class="text-gray-400 uppercase text-[10px] font-bold tracking-wider">Receiver</p>
+                        <p class="font-semibold text-gray-800">{{ order.name }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 uppercase text-[10px] font-bold tracking-wider">Contact</p>
+                        <p class="text-gray-700">{{ order.phone }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 uppercase text-[10px] font-bold tracking-wider">Address</p>
+                        <p class="text-gray-700 leading-relaxed">{{ order.address }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 text-center">
+                <h3 class="font-bold text-gray-800 mb-2">Payment Method</h3>
+                <span class="inline-block px-4 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold uppercase tracking-widest">
+                    {{ order.get_payment_method_display }}
+                </span>
+            </div>
+
+            <div class="space-y-3">
+                <a href="{% url 'shop:product_list' %}" class="block w-full text-center py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition shadow-lg shadow-purple-200">
+                    Continue Shopping
+                </a>
+                <a href="{% url 'shop:profile' %}" class="block w-full text-center py-3 border border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition">
+                    View Orders
+                </a>
+            </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+{{ block.super }}
+{% if site_settings.facebook_pixel_id %}
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        // Pixel ID is taken from the context variable or SiteSettings config
-        var pixelID = '{{ config.facebook_pixel_id|default:FACEBOOK_PIXEL_ID }}'; 
+        if (typeof fbq === 'undefined') return;
 
-        if (typeof fbq !== 'undefined' && pixelID) {
-            
-            // 1. Prepare Phone Number (Ensure standard format e.g., 88017...)
-            var rawPhone = '{{ order.phone }}';
-            var formattedPhone = rawPhone.replace(/[^0-9]/g, ''); // Remove non-numeric
-            
-            // Add country code if missing (Basic check for BD)
-            if (formattedPhone.startsWith('01')) {
-                formattedPhone = '88' + formattedPhone;
-            }
+        // 1. Prepare User Data for Advanced Matching
+        var rawPhone = '{{ order.phone }}';
+        var formattedPhone = rawPhone.replace(/[^0-9]/g, '');
+        if (formattedPhone.startsWith('01')) { formattedPhone = '88' + formattedPhone; }
 
-            // 2. Advanced Matching Data
-            var advancedMatchingData = {
-                ph: formattedPhone, 
-                fn: '{{ order.name }}'.split(" ")[0], // First word as First Name
-                external_id: '{{ order.id }}'
-            };
+        var userData = { 
+            ph: formattedPhone, 
+            fn: '{{ order.name|escapejs }}'.split(" ")[0], 
+            external_id: '{{ order.id }}' 
+        };
+        
+        // Re-init with matching data
+        fbq('init', '{{ site_settings.facebook_pixel_id }}', userData);
 
-            // 3. Re-initialize Pixel with Advanced Matching Data
-            fbq('init', pixelID, advancedMatchingData);
-
-            // 4. Conditional Event Firing based on Config Mode
-            // এই অংশটিই আপনার ডুপ্লিকেট সমস্যার সমাধান করবে
-            {% if config.facebook_pixel_mode == 'manual' %}
-                
-                // Manual Mode: Send 'Lead' now. 'Purchase' will come later from Server when Admin confirms.
-                fbq('track', 'Lead', {
-                    content_name: 'Order #{{ order.id }}',
-                    content_category: 'Checkout',
-                    value: {{ order.get_total_cost|floatformat:2 }},
-                    currency: 'BDT',
-                    content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% if not forloop.last %},{% endif %}{% endfor %}],
-                    content_type: 'product'
-                });
-                console.log("Pixel Mode: Manual - Firing LEAD Event");
-
-            {% else %}
-
-                // Automatic Mode: Send 'Purchase' immediately.
-                fbq('track', 'Purchase', {
-                    content_name: 'Order #{{ order.id }}',
-                    content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% if not forloop.last %},{% endif %}{% endfor %}],
-                    content_type: 'product',
-                    value: {{ order.get_total_cost|floatformat:2 }},
-                    currency: 'BDT',
-                    num_items: {{ order.items.count }}
-                });
-                console.log("Pixel Mode: Automatic - Firing PURCHASE Event");
-
-            {% endif %}
-        }
+        // 2. Fire Event based on Admin Settings
+        {% if site_settings.facebook_pixel_mode == 'manual' %}
+            // Manual Mode: Fire LEAD
+            fbq('track', 'Lead', {
+                content_name: 'Order #{{ order.id }}',
+                value: {{ order.get_total_cost|floatformat:2 }},
+                currency: 'BDT',
+                content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% endfor %}],
+                content_type: 'product'
+            }, { eventID: 'lead_{{ order.id }}' });
+            console.log("✅ Browser Event: LEAD Fired");
+        {% else %}
+            // Automatic Mode: Fire PURCHASE
+            fbq('track', 'Purchase', {
+                content_name: 'Order #{{ order.id }}',
+                content_ids: [{% for item in order.items.all %}'{{ item.product.id }}',{% endfor %}],
+                content_type: 'product',
+                value: {{ order.get_total_cost|floatformat:2 }},
+                currency: 'BDT',
+                order_id: '{{ order.id }}'
+            }, { eventID: 'purchase_{{ order.id }}' });
+            console.log("✅ Browser Event: PURCHASE Fired");
+        {% endif %}
     });
 </script>
+{% endif %}
 {% endblock %}

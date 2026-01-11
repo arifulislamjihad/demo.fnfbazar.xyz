@@ -101,6 +101,8 @@ ROOT_URLCONF = "e_shop.urls"
 # --------------------------
 # TEMPLATES
 # --------------------------
+# ... (Baki sob code same thakbe)
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -112,6 +114,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # Custom Processors
                 "shop.context_processors.cart_items_count",
                 "shop.context_processors.site_settings",
                 "shop.context_processors.facebook_pixel",
