@@ -34,6 +34,7 @@ DOCKER_HOSTS = [
     "localhost",
     "127.0.0.1",
     "entertaining-hyperemotional-tandy.ngrok-free.dev",
+    "demo.fnfbazar.xyz",
 ]
 
 ALLOWED_HOSTS = list(set(env_hosts + DOCKER_HOSTS))

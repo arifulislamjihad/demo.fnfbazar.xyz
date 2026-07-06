@@ -1,0 +1,11 @@
+services:
+  django_app:
+    build: .
+    container_name: django-ecommerce-demo
+    restart: always
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8000"
+    environment:
+      - DEBUG=False

@@ -17,10 +17,8 @@
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
 
-        // Initialize with Admin Pixel ID
         fbq('init', '{{ site_settings.facebook_pixel_id }}');
-        
-        // Set Test Event Code from Django Admin
+
         {% if site_settings.facebook_test_event_code %}
             fbq('set', 'test_event_code', '{{ site_settings.facebook_test_event_code }}');
             console.log("🧪 Test Event Code Set: {{ site_settings.facebook_test_event_code }}");
@@ -38,7 +36,19 @@
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Poppins', sans-serif; }</style>
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+
+        @media (min-width: 1024px) {
+            #mobileCartBar,
+            #cartDrawer,
+            #cartDrawerOverlay {
+                display: none !important;
+            }
+        }
+    </style>
+
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -52,26 +62,36 @@
                     <span class="text-2xl font-bold text-purple-600">{{ site_settings.site_name|default:"E-Shop" }}</span>
                 {% endif %}
             </a>
-            <button id="menu-btn" class="lg:hidden text-gray-700 text-2xl"><i class="fas fa-bars"></i></button>
+
+            <button id="menu-btn" class="lg:hidden text-gray-700 text-2xl">
+                <i class="fas fa-bars"></i>
+            </button>
+
             <ul id="menu" class="hidden lg:flex space-x-8 text-gray-700 font-medium">
                 <li><a href="{% url 'shop:home' %}" class="hover:text-purple-600">Home</a></li>
                 <li><a href="{% url 'shop:product_list' %}" class="hover:text-purple-600">Products</a></li>
             </ul>
+
             <div class="hidden lg:flex items-center space-x-6">
                 <form action="{% url 'shop:product_list' %}" method="get" class="flex">
                     <input name="search" type="text" placeholder="Search..." class="px-3 py-2 border border-gray-300 rounded-l-full focus:ring-2 focus:ring-purple-300 outline-none">
-                    <button class="bg-purple-600 text-white px-4 rounded-r-full"><i class="fas fa-search"></i></button>
+                    <button class="bg-purple-600 text-white px-4 rounded-r-full">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </form>
-                <a href="{% url 'shop:cart_detail' %}" class="relative text-gray-700 hover:text-purple-600">
+
+                <a href="{% url 'shop:cart_detail' %}" class="relative text-gray-700 hover:text-purple-600" id="headerCartLink">
                     <i class="fas fa-shopping-cart text-2xl"></i>
                     {% if cart_items_count %}
                         <span class="absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">{{ cart_items_count }}</span>
                     {% endif %}
                 </a>
+
                 {% if user.is_authenticated %}
                     <div class="relative group">
                         <button class="flex items-center space-x-2 text-gray-700">
-                            <i class="fas fa-user-circle text-2xl"></i><span>{{ user.username }}</span>
+                            <i class="fas fa-user-circle text-2xl"></i>
+                            <span>{{ user.username }}</span>
                         </button>
                         <div class="absolute hidden group-hover:block right-0 mt-2 bg-white shadow-lg w-40 rounded-lg overflow-hidden">
                             <a href="{% url 'shop:profile' %}" class="block px-4 py-2 hover:bg-gray-100">My Profile</a>
@@ -84,14 +104,19 @@
                 {% endif %}
             </div>
         </nav>
+
         <ul id="mobile-menu" class="hidden lg:hidden bg-white shadow-md px-6 pb-4 space-y-3 text-gray-700 font-medium">
             <li><a href="{% url 'shop:home' %}" class="block py-2">Home</a></li>
             <li><a href="{% url 'shop:product_list' %}" class="block py-2">Products</a></li>
         </ul>
+
         <script>
-            document.getElementById("menu-btn").onclick = () => { document.getElementById("mobile-menu").classList.toggle("hidden"); }
+            document.getElementById("menu-btn").onclick = () => {
+                document.getElementById("mobile-menu").classList.toggle("hidden");
+            };
         </script>
     </header>
+
     <main class="container mx-auto my-6 px-4 flex-1">
         {% if messages %}
             <div class="mb-4">
@@ -102,16 +127,249 @@
                 {% endfor %}
             </div>
         {% endif %}
+
         {% block content %}{% endblock %}
     </main>
+
     <footer class="bg-gray-100 mt-10 py-10">
         <div class="container mx-auto px-4 grid md:grid-cols-3 gap-6">
-            <div><h3 class="text-xl font-semibold text-purple-600 mb-3">About Us</h3><p class="text-gray-600">{{ site_settings.about_text|default:"We provide high-quality products." }}</p></div>
-            <div><h3 class="text-xl font-semibold text-purple-600 mb-3">Contact</h3>{% if site_settings.email %}<p class="text-gray-600">Email: {{ site_settings.email }}</p>{% endif %}{% if site_settings.phone %}<p class="text-gray-600">Phone: {{ site_settings.phone }}</p>{% endif %}</div>
-            <div><h3 class="text-xl font-semibold text-purple-600 mb-3">Follow Us</h3><div class="flex space-x-4">{% if site_settings.facebook %}<a href="{{ site_settings.facebook }}" target="_blank"><i class="fab fa-facebook text-2xl text-purple-600"></i></a>{% endif %}</div></div>
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">About Us</h3>
+                <p class="text-gray-600">{{ site_settings.about_text|default:"We provide high-quality products." }}</p>
+            </div>
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">Contact</h3>
+                {% if site_settings.email %}<p class="text-gray-600">Email: {{ site_settings.email }}</p>{% endif %}
+                {% if site_settings.phone %}<p class="text-gray-600">Phone: {{ site_settings.phone }}</p>{% endif %}
+            </div>
+            <div>
+                <h3 class="text-xl font-semibold text-purple-600 mb-3">Follow Us</h3>
+                <div class="flex space-x-4">
+                    {% if site_settings.facebook %}
+                        <a href="{{ site_settings.facebook }}" target="_blank"><i class="fab fa-facebook text-2xl text-purple-600"></i></a>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         <p class="text-center text-gray-600 mt-6">&copy; {% now "Y" %} {{ site_settings.site_name|default:"E-Shop" }}. {{ site_settings.footer_text|default:"All Rights Reserved." }}</p>
     </footer>
+
+
+
+
+
+
+
+
+        <!-- MOBILE CART DRAWER OVERLAY -->
+    <div id="cartDrawerOverlay"
+         class="hidden lg:hidden"
+         style="position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:60;"></div>
+
+    <!-- MOBILE CART DRAWER -->
+    <div id="cartDrawer"
+         class="hidden lg:hidden"
+         style="position:fixed; left:0; right:0; bottom:0; background:#fff; z-index:70; border-top-left-radius:18px; border-top-right-radius:18px; box-shadow:0 -8px 30px rgba(0,0,0,.18); overflow:hidden;">
+
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #e5e7eb;">
+            <h3 style="font-size:18px; font-weight:600;">Cart</h3>
+            <button type="button" onclick="closeCartDrawer()" style="font-size:22px; color:#6b7280;">✖</button>
+        </div>
+
+        <div id="drawerItems" style="padding:16px; max-height:280px; overflow-y:auto;"></div>
+
+        <div style="border-top:1px solid #e5e7eb; padding:16px;">
+            <div style="display:flex; justify-content:space-between; font-weight:600; margin-bottom:12px;">
+                <span>Total</span>
+                <span>৳<span id="drawerTotal">0</span></span>
+            </div>
+
+            <a href="{% url 'shop:cart_detail' %}"
+               style="display:block; text-align:center; background:#7c3aed; color:#fff; padding:12px 14px; border-radius:10px; font-weight:500; text-decoration:none;">
+                Checkout
+            </a>
+        </div>
+    </div>
+
+    <!-- MOBILE STICKY CART BAR -->
+    <div id="mobileCartBar"
+         class="hidden lg:hidden"
+         style="position:fixed; left:0; right:0; bottom:0; z-index:65;">
+        <div style="background:#ffffff; border-top:1px solid #e5e7eb; box-shadow:0 -4px 20px rgba(0,0,0,.08); display:flex; align-items:center; height:64px;">
+
+            <button type="button"
+                    aria-label="Support"
+                    style="width:56px; height:64px; border:none; background:#f87171; color:#fff; display:flex; align-items:center; justify-content:center; flex:0 0 56px;">
+                <i class="far fa-comment-dots" style="font-size:20px;"></i>
+            </button>
+
+            <a href="{% url 'shop:cart_detail' %}"
+               style="flex:1; height:64px; display:flex; align-items:center; justify-content:center; background:#7c3aed; color:#fff; font-size:22px; font-weight:500; text-decoration:none;">
+                Place Order
+            </a>
+
+            <button type="button"
+                    onclick="openCartDrawer()"
+                    aria-label="Open cart"
+                    style="position:relative; width:56px; height:64px; border:none; border-left:1px solid #e5e7eb; background:#fff; color:#16a34a; display:flex; align-items:center; justify-content:center; flex:0 0 56px;">
+                <i class="fas fa-shopping-bag" style="font-size:22px;"></i>
+                <span id="cartCount"
+                      style="position:absolute; top:4px; right:4px; min-width:20px; height:20px; padding:0 5px; border-radius:9999px; background:#7c3aed; color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center;">0</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function openCartDrawer() {
+            const drawer = document.getElementById("cartDrawer");
+            const overlay = document.getElementById("cartDrawerOverlay");
+            if (drawer) drawer.classList.remove("hidden");
+            if (overlay) overlay.classList.remove("hidden");
+        }
+
+        function closeCartDrawer() {
+            const drawer = document.getElementById("cartDrawer");
+            const overlay = document.getElementById("cartDrawerOverlay");
+            if (drawer) drawer.classList.add("hidden");
+            if (overlay) overlay.classList.add("hidden");
+        }
+
+        function showCartToast(message) {
+            let toast = document.getElementById("cartToast");
+
+            if (!toast) {
+                toast = document.createElement("div");
+                toast.id = "cartToast";
+                toast.style.position = "fixed";
+                toast.style.top = "96px";
+                toast.style.right = "16px";
+                toast.style.zIndex = "80";
+                toast.style.background = "#22c55e";
+                toast.style.color = "#fff";
+                toast.style.padding = "12px 16px";
+                toast.style.borderRadius = "10px";
+                toast.style.boxShadow = "0 10px 20px rgba(0,0,0,.15)";
+                toast.style.display = "none";
+                document.body.appendChild(toast);
+            }
+
+            toast.textContent = message;
+            toast.style.display = "block";
+
+            clearTimeout(window.cartToastTimer);
+            window.cartToastTimer = setTimeout(() => {
+                toast.style.display = "none";
+            }, 2000);
+        }
+
+        function updateCartUI(data) {
+            let totalCount = 0;
+            data.items.forEach(i => totalCount += i.quantity);
+
+            const mobileCartBar = document.getElementById("mobileCartBar");
+            const cartCount = document.getElementById("cartCount");
+            const drawerTotal = document.getElementById("drawerTotal");
+            const drawerItems = document.getElementById("drawerItems");
+
+            if (mobileCartBar && totalCount > 0) {
+                mobileCartBar.classList.remove("hidden");
+            }
+
+            if (cartCount) {
+                cartCount.textContent = totalCount;
+            }
+
+            if (drawerTotal) {
+                drawerTotal.textContent = data.cart_total;
+            }
+
+            let mobileHtml = "";
+            data.items.forEach(item => {
+                mobileHtml += `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; border-bottom:1px solid #e5e7eb; padding-bottom:10px; margin-bottom:10px;">
+                        <div>
+                            <p style="font-weight:500; color:#1f2937; margin:0 0 4px 0;">${item.name}</p>
+                            <p style="font-size:14px; color:#6b7280; margin:0;">Qty: ${item.quantity}</p>
+                        </div>
+                        <span style="font-weight:600; color:#1f2937;">৳${item.cost}</span>
+                    </div>
+                `;
+            });
+
+            if (drawerItems) {
+                drawerItems.innerHTML = mobileHtml || `<p style="font-size:14px; color:#6b7280;">Your cart is empty.</p>`;
+            }
+
+            const headerCartLink = document.getElementById("headerCartLink");
+            if (headerCartLink) {
+                let badge = headerCartLink.querySelector("span");
+
+                if (!badge && totalCount > 0) {
+                    badge = document.createElement("span");
+                    badge.className = "absolute -top-2 -right-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full";
+                    headerCartLink.appendChild(badge);
+                }
+
+                if (badge) {
+                    badge.textContent = totalCount;
+                }
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const overlay = document.getElementById("cartDrawerOverlay");
+            if (overlay) {
+                overlay.addEventListener("click", closeCartDrawer);
+            }
+
+            document.querySelectorAll(".add-to-cart-form").forEach(form => {
+                form.addEventListener("submit", function (e) {
+                    e.preventDefault();
+
+                    const formData = new FormData(this);
+
+                    fetch(this.action, {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        updateCartUI(data);
+
+                        if (window.innerWidth >= 1024) {
+                            showCartToast("Product added to cart");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Cart Error:", error);
+                        showCartToast("Something went wrong");
+                    });
+                });
+            });
+
+            {% if cart_items_count %}
+            const existingCount = {{ cart_items_count|default:0 }};
+            if (existingCount > 0) {
+                const mobileCartBar = document.getElementById("mobileCartBar");
+                const cartCount = document.getElementById("cartCount");
+
+                if (mobileCartBar) mobileCartBar.classList.remove("hidden");
+                if (cartCount) cartCount.textContent = existingCount;
+            }
+            {% endif %}
+        });
+    </script>
+
+
+
+
+
+
+
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

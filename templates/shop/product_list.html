@@ -50,9 +50,24 @@
     </div>
 </div>
 
+<!-- Mobile Filter Toggle -->
+<div class="lg:hidden mb-4">
+    <button
+        id="filterToggleBtn"
+        type="button"
+        class="w-full flex items-center justify-between bg-white shadow-md rounded-xl px-4 py-3 text-gray-800 font-semibold"
+    >
+        <span class="flex items-center gap-2">
+            <i class="fas fa-filter"></i>
+            Filters
+        </span>
+        <i id="filterToggleIcon" class="fas fa-chevron-down text-sm"></i>
+    </button>
+</div>
+
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
-    <aside class="lg:col-span-1">
+    <aside id="filterSidebar" class="lg:col-span-1">
         <div class="bg-white shadow-md rounded-xl p-6 sticky top-4">
 
             <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -113,7 +128,8 @@
                     <input type="hidden" name="search" value="{{ request.GET.search }}">
                 {% endif %}
 
-                <button class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg mt-3">
+                <button type="submit"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg mt-3">
                     Apply Filters
                 </button>
 
@@ -128,65 +144,68 @@
     <section class="lg:col-span-3">
 
         {% if products %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
 
             {% for product in products %}
-            <div class="bg-white rounded-xl shadow hover:shadow-xl transition flex flex-col overflow-hidden">
+            <div class="bg-white rounded-xl shadow hover:shadow-xl transition flex flex-col overflow-hidden h-full">
 
-                <div class="relative h-48">
-                    
-                    {% if product.image %}
-                    <img src="{{ product.image.url }}" 
-                         class="w-full h-full object-cover hover:scale-110 transition">
-                    {% else %}
-                    <div class="w-full h-full flex items-center justify-center bg-gray-100">
-                        <i class="fas fa-image text-gray-400 text-4xl"></i>
+                <a href="{% url 'shop:product_detail' product.slug %}" class="block">
+                    <div class="relative h-48">
+                        
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" 
+                             alt="{{ product.name }}"
+                             class="w-full h-full object-cover hover:scale-110 transition">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                            <i class="fas fa-image text-gray-400 text-4xl"></i>
+                        </div>
+                        {% endif %}
+
+                        {% if product.stock <= 5 and product.stock > 0 %}
+                        <span class="absolute top-2 left-2 bg-yellow-400 text-white text-xs px-2 py-1 rounded">Low Stock</span>
+                        {% elif product.stock <= 0 %}
+                        <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">Out of Stock</span>
+                        {% endif %}
+
                     </div>
-                    {% endif %}
 
-                    {% if product.stock <= 5 and product.stock > 0 %}
-                    <span class="absolute top-2 left-2 bg-yellow-400 text-white text-xs px-2 py-1 rounded">Low Stock</span>
-                    {% elif product.stock <= 0 %}
-                    <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">Out of Stock</span>
-                    {% endif %}
+                    <div class="p-4 flex flex-col flex-grow">
+                        <h3 class="font-semibold text-gray-800 line-clamp-2">{{ product.name }}</h3>
+                        <p class="text-gray-500 text-sm mt-1 line-clamp-3">
+                            {{ product.description|striptags|truncatechars:100 }}
+                        </p>
 
-                </div>
+                        <div class="mt-auto flex justify-between items-center pt-3">
+                            <span class="text-lg font-bold text-gray-900">৳{{ product.price }}</span>
 
-                <div class="p-4 flex flex-col flex-grow">
-                    <h3 class="font-semibold text-gray-800 line-clamp-2">{{ product.name }}</h3>
-                    <p class="text-gray-500 text-sm mt-1 line-clamp-3">
-                        {{ product.description|striptags|truncatechars:100 }}
-                    </p>
-
-                    <div class="mt-auto flex justify-between items-center pt-3">
-                        <span class="text-lg font-bold text-gray-900">৳{{ product.price }}</span>
-
-                        <div class="text-yellow-400 text-sm">
-                            {% for i in "12345" %}
-                                {% if forloop.counter <= product.average_rating %}
-                                    ★
-                                {% else %}
-                                    ☆
-                                {% endif %}
-                            {% endfor %}
-                            <span class="text-gray-400 text-xs ml-1">({{ product.ratings.count }})</span>
+                            <div class="text-yellow-400 text-sm">
+                                {% for i in "12345" %}
+                                    {% if forloop.counter <= product.average_rating %}
+                                        ★
+                                    {% else %}
+                                        ☆
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="text-gray-400 text-xs ml-1">({{ product.ratings.count }})</span>
+                            </div>
                         </div>
                     </div>
+                </a>
 
-                    <div class="mt-4 flex gap-2">
-                        <a href="{% url 'shop:product_detail' product.slug %}"
-                           class="w-1/2 text-center py-2 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50">
-                            View Details
-                        </a>
+                <div class="mt-auto flex flex-col sm:flex-row gap-2 p-4 pt-0">
+                    <a href="{% url 'shop:product_detail' product.slug %}"
+                       class="w-full sm:w-1/2 text-center py-2 text-sm sm:text-base border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50">
+                        অর্ডার করুন
+                    </a>
 
-                        <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-1/2">
-                            {% csrf_token %}
-                            <button type="submit"
-                                    class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg">
-                                Add to Cart
-                            </button>
-                        </form>
-                    </div>
+                    <form action="{% url 'shop:cart_add' product.id %}" method="post" class="w-full sm:w-1/2 add-to-cart-form">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm sm:text-base rounded-lg">
+                            Add to Cart
+                        </button>
+                    </form>
                 </div>
 
             </div>
@@ -210,5 +229,41 @@
     </section>
 
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const filterToggleBtn = document.getElementById('filterToggleBtn');
+        const filterSidebar = document.getElementById('filterSidebar');
+        const filterToggleIcon = document.getElementById('filterToggleIcon');
+
+        function handleFilterSidebar() {
+            if (window.innerWidth < 1024) {
+                filterSidebar.style.display = 'none';
+            } else {
+                filterSidebar.style.display = 'block';
+            }
+        }
+
+        handleFilterSidebar();
+
+        window.addEventListener('resize', handleFilterSidebar);
+
+        if (filterToggleBtn) {
+            filterToggleBtn.addEventListener('click', function () {
+                if (window.innerWidth < 1024) {
+                    if (filterSidebar.style.display === 'none') {
+                        filterSidebar.style.display = 'block';
+                        filterToggleIcon.classList.remove('fa-chevron-down');
+                        filterToggleIcon.classList.add('fa-chevron-up');
+                    } else {
+                        filterSidebar.style.display = 'none';
+                        filterToggleIcon.classList.remove('fa-chevron-up');
+                        filterToggleIcon.classList.add('fa-chevron-down');
+                    }
+                }
+            });
+        }
+    });
+</script>
 
 {% endblock %}
