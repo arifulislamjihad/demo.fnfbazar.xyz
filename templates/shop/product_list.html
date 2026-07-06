@@ -150,12 +150,14 @@
             <div class="bg-white rounded-xl shadow hover:shadow-xl transition flex flex-col overflow-hidden h-full">
 
                 <a href="{% url 'shop:product_detail' product.slug %}" class="block">
-                    <div class="relative h-48">
+                    <!-- BULLETPROOF INLINE HTML BOX (DARAZ 1:1 SQUARE) -->
+                    <div style="width: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; background-color: #ffffff; position: relative; overflow: hidden; padding: 12px; border-bottom: 1px solid #f3f4f6;">
                         
                         {% if product.image %}
                         <img src="{{ product.image.url }}" 
                              alt="{{ product.name }}"
-                             class="w-full h-full object-cover hover:scale-110 transition">
+                             style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;"
+                             class="hover:scale-105 transition duration-300">
                         {% else %}
                         <div class="w-full h-full flex items-center justify-center bg-gray-100">
                             <i class="fas fa-image text-gray-400 text-4xl"></i>
@@ -163,9 +165,9 @@
                         {% endif %}
 
                         {% if product.stock <= 5 and product.stock > 0 %}
-                        <span class="absolute top-2 left-2 bg-yellow-400 text-white text-xs px-2 py-1 rounded">Low Stock</span>
+                        <span class="absolute top-2 left-2 bg-yellow-400 text-white text-xs px-2 py-1 rounded z-10">Low Stock</span>
                         {% elif product.stock <= 0 %}
-                        <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">Out of Stock</span>
+                        <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded z-10">Out of Stock</span>
                         {% endif %}
 
                     </div>

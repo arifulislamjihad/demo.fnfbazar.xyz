@@ -158,10 +158,12 @@
         <div onclick="window.location.href='{% url 'shop:product_detail' product.slug %}'" 
              class="bg-white rounded-xl shadow-lg hover:-translate-y-2 transition duration-300 overflow-hidden flex flex-col h-full border border-gray-100 hover:border-purple-200 group cursor-pointer">
 
-            <div class="h-52 w-full bg-white relative overflow-hidden">
+            <!-- BULLETPROOF INLINE HTML BOX (DARAZ 1:1 SQUARE) -->
+            <div style="width: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; background-color: #ffffff; position: relative; overflow: hidden; padding: 12px; border-bottom: 1px solid #f3f4f6;">
                 {% if product.image %}
                 <img src="{{ product.image.url }}" 
-                     class="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                     style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;"
+                     class="group-hover:scale-105 transition duration-500"
                      alt="{{ product.name }}">
                 {% else %}
                 <div class="flex items-center justify-center h-full w-full bg-gray-100 text-gray-300">
